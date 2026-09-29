@@ -51,6 +51,7 @@ LOG_PATH = DATA_DIR / "sniper_bot.log"
 STATE_PATH = DATA_DIR / "sniper_state.json"
 CONTROL_PATH = DATA_DIR / "sniper_control.json"          # page: {"trading": true/false}
 CLOSE_REQUEST = DATA_DIR / "sniper_close_request.json"   # page: close these trades by hand
+CHECK_FLAG = DATA_DIR / "sniper_check_now.flag"          # page: "Check now" was pressed at this unix time
 CYCLE = 900            # plan every 15 minutes
 CYCLE_DELAY = 20       # seconds after the 15m candle closes (let the exchange finish the candle)
 HOUSEKEEPING_SECONDS = 30
@@ -91,6 +92,18 @@ def close_requested() -> list[str] | str | None:
     if time.time() - float(request.get("time", 0)) > 600:
         return None
     return request.get("symbols")
+
+
+def check_requested() -> bool:
+    """True once per press of "Check now"; presses older than 10 minutes are ignored."""
+    if not CHECK_FLAG.exists():
+        return False
+    try:
+        pressed = float(CHECK_FLAG.read_text(encoding="utf-8").strip() or 0)
+    except (OSError, ValueError):
+        pressed = 0
+    CHECK_FLAG.unlink(missing_ok=True)
+    return time.time() - pressed < 600
 
 
 def log(message: str) -> None:
@@ -563,9 +576,13 @@ class SniperBot:
                 to_close = close_requested()
                 if to_close:
                     self.close_by_hand(to_close)
-                if time.time() >= next_cycle:
-                    now = time.time()
-                    next_cycle = now - now % CYCLE + CYCLE + CYCLE_DELAY
+                pressed = check_requested()
+                if pressed or time.time() >= next_cycle:
+                    if pressed:
+                        log("Check requested from the page")
+                    else:  # the regular 15-minute rhythm; a "Check now" doesn't move it
+                        now = time.time()
+                        next_cycle = now - now % CYCLE + CYCLE + CYCLE_DELAY
                     self.state["next_cycle"] = next_cycle
                     self.housekeeping()
                     self.cycle(trade=load_control()["trading"])

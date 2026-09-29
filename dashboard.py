@@ -335,7 +335,7 @@ def sniper_status() -> dict:
             "last_cycle": state.get("last_cycle"), "watch": state.get("watch", []), "positions": positions,
             "closed_count": len(closed), "closed": closed[-30:][::-1], "wins": sum(p > 0 for p in pnls),
             "losses": sum(p <= 0 for p in pnls), "net": sum(pnls), "unrealized": sum(p["upnl"] for p in positions),
-            "close_pending": sniper_bot.CLOSE_REQUEST.exists(),
+            "close_pending": sniper_bot.CLOSE_REQUEST.exists(), "check_requested": sniper_bot.CHECK_FLAG.exists(),
             "rules": {"risk": s.risk, "min_rr": s.min_rr, "max_leverage": s.max_leverage, "coins": s.max_coins,
                       "adx_min": s.adx_min, "max_hold": s.max_hold},
             "log": lines[::-1]}
@@ -616,6 +616,12 @@ class Handler(BaseHTTPRequestHandler):
                 sniper_bot.CONTROL_PATH.parent.mkdir(parents=True, exist_ok=True)
                 sniper_bot.CONTROL_PATH.write_text(json.dumps(control), encoding="utf-8")
                 self.send_json(control)
+                return
+            if path == "/api/sniper/check":
+                # "Check now": the running sniper bot reads every chart within a few seconds
+                sniper_bot.CHECK_FLAG.parent.mkdir(parents=True, exist_ok=True)
+                sniper_bot.CHECK_FLAG.write_text(str(time.time()), encoding="utf-8")
+                self.send_json({"ok": True})
                 return
             if path == "/api/sniper/close":
                 if body.get("all"):

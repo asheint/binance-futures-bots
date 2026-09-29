@@ -53,6 +53,12 @@
   .seg button { font: inherit; font-size: 13px; font-weight: 600; color: var(--muted); background: none; border: 0; padding: 5px 12px; border-radius: 99px; cursor: pointer; }
   .seg button.on { background: var(--lime); color: #10241c; }
   .seg button.on.paused { background: var(--orange); }
+  .controls { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+  .controls .seg { margin-top: 0; }
+  .check-btn { font: inherit; font-size: 13px; font-weight: 600; color: #10241c; background: var(--lime); border: 0; border-radius: 99px;
+               padding: 7px 14px; cursor: pointer; box-shadow: 0 0 18px rgba(182, 243, 107, .35); white-space: nowrap; }
+  .check-btn:hover { filter: brightness(1.08); }
+  .check-btn:disabled { background: rgba(255,255,255,.12); color: var(--muted); box-shadow: none; cursor: default; }
 
   .side { position: fixed; top: 16px; right: 16px; bottom: 16px; width: 340px; display: flex; flex-direction: column; gap: 12px; }
   .stats { padding: 16px 18px; }
@@ -161,9 +167,12 @@
   <div>
     <div class="name">Sniper <span id="status" class="pill"><i></i><span>connecting…</span></span></div>
     <div class="sub" id="substatus">Loading the scope…</div>
-    <div class="seg" id="tradeSeg" role="group" aria-label="Trading">
-      <button data-trading="1" title="Fire when a trigger candle closes at a line">Trading on</button>
-      <button data-trading="0" title="Keep drawing lines, but don't fire">Paused</button>
+    <div class="controls">
+      <div class="seg" id="tradeSeg" role="group" aria-label="Trading">
+        <button data-trading="1" title="Fire when a trigger candle closes at a line">Trading on</button>
+        <button data-trading="0" title="Keep drawing lines, but don't fire">Paused</button>
+      </div>
+      <button class="check-btn" id="checkBtn" title="Read every chart and redraw the lines now">🔭 Check now</button>
     </div>
     <div class="rules" id="rules"></div>
   </div>
@@ -480,6 +489,10 @@ function render(d) {
   st.lastElementChild.textContent = !alive ? (d.heartbeat ? "stopped" : "not started") : d.cycle_running ? "reading charts" : d.trading ? "watching" : "paused";
   baseMood = !alive ? "sleep" : d.cycle_running ? "scan" : targets.size ? "aim" : "watch";
   document.querySelectorAll("#tradeSeg button").forEach((b) => { const on = (b.dataset.trading === "1") === !!d.trading; b.classList.toggle("on", on); b.classList.toggle("paused", on && !d.trading); });
+  const cb = $("checkBtn");
+  cb.disabled = !alive || d.cycle_running || d.check_requested;
+  cb.textContent = d.cycle_running ? "🔭 Checking…" : d.check_requested ? "🔭 Starting…" : "🔭 Check now";
+  cb.title = alive ? "Read every chart and redraw the lines now" : "Start sniper.cmd first";
   const r = d.rules;
   $("rules").textContent = `Trend (4h) + key level + closed trigger candle · lose ${r.risk} USDT at the stop · target ≥ ${r.min_rr}R · half off at +1R · top ${r.coins} coins`;
   renderSub();
@@ -554,6 +567,13 @@ $("tradeSeg").addEventListener("click", async (e) => {
     say(trading ? "Safety off. I'll fire when a line triggers 🎯" : "Holding fire. I'll keep drawing lines 🧘", 3.5); }
   catch (err) { say(`Couldn't switch: ${err.message} 😵`, 3); }
 });
+$("checkBtn").addEventListener("click", async () => {
+  try {
+    await post("/api/sniper/check");
+    data.check_requested = true; render(data);
+    setMood("scan", 3); say("Reading every chart now 🔭", 3);
+  } catch (err) { say(`Couldn't start a check: ${err.message} 😵`, 3); }
+});
 async function closeTrades(symbols) {
   try {
     if (symbols === "all") await post("/api/sniper/close", { all: true }); else for (const s of symbols) await post("/api/sniper/close", { symbol: s });
@@ -596,6 +616,24 @@ setInterval(() => {
 
 // ================================================================ animation
 const tmpV = new THREE.Vector3(); let lastEye = 0;
+// labels are HTML drawn over the 3D scene, so they don't know when the robot stands in front of them:
+// every few frames, cast a ray from the camera to each label and fade the ones the robot covers
+const occluder = new THREE.Raycaster(), camPos = new THREE.Vector3(), labelPos = new THREE.Vector3();
+let robotParts = null, frame = 0;
+function hideCoveredLabels() {
+  robotParts = robotParts || (() => { const parts = []; hover.traverse((o) => { if (o.isMesh && o !== jet) parts.push(o); }); return parts; })();
+  camera.getWorldPosition(camPos);
+  for (const tg of targets.values()) {
+    const label = tg.g.children.find((o) => o.isCSS2DObject);
+    if (!label) continue;
+    label.getWorldPosition(labelPos);
+    const dist = camPos.distanceTo(labelPos);
+    occluder.set(camPos, labelPos.clone().sub(camPos).normalize());
+    occluder.far = dist;
+    const covered = occluder.intersectObjects(robotParts, false).length > 0;
+    tg.el.style.opacity = covered ? "0" : "1";
+  }
+}
 function animate() {
   const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime, now = performance.now() / 1000;
   if (now > moodUntil) mood = baseMood;
@@ -625,6 +663,7 @@ function animate() {
     tg.face.rotation.z = Math.sin(t * 40) * 0.25 * tg.shake;
     tg.mats.forEach((m) => { m.emissiveIntensity = tg.live ? 0.35 + Math.sin(t * 3) * 0.15 : 0.05; });
   }
+  if (++frame % 3 === 0) hideCoveredLabels();
   fireflies.rotation.y += dt * 0.04;
   const fp = fireflies.geometry.attributes.position;
   for (let i = 0; i < fp.count; i++) fp.setY(i, fp.getY(i) + Math.sin(t * 1.2 + i) * 0.002);
