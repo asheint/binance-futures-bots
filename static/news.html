@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>News Bot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-top: #121a36;
+    --card: rgba(22, 28, 58, 0.66);
+    --card-line: rgba(255, 196, 120, 0.18);
+    --text: #f6f1e6;
+    --muted: #bdb3a0;
+    --faint: #857c6c;
+    --win: #4ef0a0;
+    --loss: #ff5d73;
+    --amber: #ffb454;
+    --paper: #f3ead7;
+    --radius: 20px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body {
+    background: radial-gradient(120% 90% at 50% 0%, #2a2350 0%, var(--bg-top) 48%, #0a0f22 100%);
+    color: var(--text);
+    font-family: "Fredoka", ui-rounded, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  #scene { position: fixed; inset: 0; }
+  #labels { position: fixed; inset: 0; pointer-events: none; }
+  .num { font-variant-numeric: tabular-nums; }
+  .up { color: var(--win); } .down { color: var(--loss); } .dim { color: var(--muted); }
+
+  .card { background: var(--card); border: 1px solid var(--card-line); border-radius: var(--radius);
+          backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
+          box-shadow: 0 10px 40px rgba(4, 4, 20, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+  .card h3 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+  .brand { position: fixed; top: 16px; left: 16px; padding: 14px 18px; display: flex; gap: 14px; align-items: flex-start; max-width: 360px; }
+  .brand .logo { font-size: 30px; line-height: 1; filter: drop-shadow(0 0 12px rgba(255, 180, 84, .5)); }
+  .brand .name { font-size: 22px; font-weight: 700; }
+  .brand .sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .brand .rules { font-size: 12px; color: var(--faint); margin-top: 8px; line-height: 1.4; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 3px 10px;
+          border-radius: 99px; background: rgba(255,255,255,.08); vertical-align: middle; }
+  .pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+  .pill.run i { background: var(--win); box-shadow: 0 0 10px var(--win); animation: pulse 1.6s infinite; }
+  .pill.stop i { background: var(--loss); }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .onair { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .12em; padding: 3px 8px; border-radius: 6px;
+           background: #3a1520; color: #ff8a9b; border: 1px solid rgba(255,93,115,.5); vertical-align: middle; margin-left: 4px; }
+  .onair.live { background: var(--loss); color: #fff; box-shadow: 0 0 14px rgba(255,93,115,.7); animation: pulse 1.2s infinite; }
+
+  .side { position: fixed; top: 16px; right: 16px; bottom: 16px; width: 330px; display: flex; flex-direction: column; gap: 12px; }
+  .stats { padding: 16px 18px; }
+  .stats .net { display: flex; align-items: flex-end; justify-content: space-between; margin: 8px 0 14px; }
+  .stats .net b { font-size: 36px; font-weight: 700; line-height: 1; }
+  .stats .net small { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .donut { width: 74px; height: 74px; flex: none; }
+  .donut text { fill: var(--text); font: 600 15px "Fredoka", sans-serif; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .tile { background: rgba(255,255,255,.05); border-radius: 14px; padding: 8px 10px; }
+  .tile .k { font-size: 11px; color: var(--muted); }
+  .tile .v { font-size: 18px; font-weight: 600; margin-top: 1px; }
+
+  .shorts { padding: 14px 8px 8px 16px; display: flex; flex-direction: column; min-height: 0; flex: 1; }
+  .shorts header { display: flex; justify-content: space-between; align-items: center; padding-right: 8px; margin-bottom: 8px; }
+  .list { overflow-y: auto; padding-right: 6px; flex: 1; scrollbar-width: thin; scrollbar-color: rgba(255,196,120,.3) transparent; }
+  .srow { padding: 9px 10px; border-radius: 14px; background: rgba(255, 93, 115, .07); margin-bottom: 8px; }
+  .srow .top { display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
+  .srow .top b { font-size: 16px; }
+  .srow .meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .bar { position: relative; height: 8px; border-radius: 99px; margin-top: 8px;
+         background: linear-gradient(90deg, rgba(78,240,160,.45), rgba(255,255,255,.08) 50%, rgba(255,93,115,.45)); }
+  .bar::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: rgba(255,255,255,.35); }
+  .bar i { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%;
+           background: #fff; box-shadow: 0 0 8px rgba(255,255,255,.7); transition: left .8s ease; }
+  .empty { color: var(--muted); font-size: 14px; padding: 18px 8px; text-align: center; line-height: 1.4; }
+
+  .feed { position: fixed; left: 16px; bottom: 16px; width: 380px; max-height: calc(100vh - 250px); padding: 14px 8px 10px 16px;
+          display: flex; flex-direction: column; }
+  .feed .list { margin-top: 8px; }
+  .nitem { padding: 8px 8px 8px 0; border-top: 1px solid rgba(255,255,255,.06); animation: pop .35s ease; }
+  .nitem:first-child { border-top: 0; }
+  .nitem .h { font-size: 14px; line-height: 1.3; }
+  .nitem .act { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .nitem .act.hot { color: var(--amber); font-weight: 600; }
+  .nitem time { font-size: 11px; color: var(--faint); }
+  @keyframes pop { from { opacity: 0; transform: translateY(6px); } }
+
+  .tools { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }
+  .btn { font: inherit; font-size: 13px; color: var(--text); background: var(--card); border: 1px solid var(--card-line); border-radius: 99px;
+         padding: 7px 14px; cursor: pointer; backdrop-filter: blur(10px); text-decoration: none; white-space: nowrap; }
+  .btn:hover { background: rgba(90, 70, 40, .7); }
+  .hint { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); font-size: 12px; color: var(--muted); padding: 6px 12px;
+          border-radius: 99px; background: rgba(10, 14, 34, .55); white-space: nowrap; }
+
+  /* BREAKING banner */
+  .breaking { position: fixed; top: 76px; left: 50%; transform: translate(-50%, -140%); opacity: 0; z-index: 6; width: min(640px, calc(100vw - 32px));
+              border-radius: 16px; overflow: hidden; box-shadow: 0 16px 50px rgba(255, 40, 70, .35);
+              transition: transform .45s cubic-bezier(.2, 1.4, .4, 1), opacity .3s, visibility .3s;
+              pointer-events: none; visibility: hidden; }
+  .breaking.show { transform: translate(-50%, 0); opacity: 1; visibility: visible; }
+  .breaking .tag { background: var(--loss); color: #fff; font: 900 15px "Playfair Display", serif; letter-spacing: .12em; padding: 6px 14px; }
+  .breaking .txt { background: var(--paper); color: #231d12; font: 700 18px "Playfair Display", Georgia, serif; padding: 12px 14px; line-height: 1.3; }
+  .breaking .act { background: #231d12; color: var(--amber); font-size: 14px; font-weight: 600; padding: 8px 14px; }
+
+  /* 3D labels */
+  .scard { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 12px; white-space: nowrap; color: #fff; text-align: center;
+           background: rgba(30, 14, 26, .78); border: 1px solid rgba(255, 93, 115, .5); line-height: 1.25; }
+  .scard small { display: block; font-size: 10px; color: var(--muted); font-weight: 500; }
+  .bubble { position: relative; max-width: 250px; font-size: 15px; font-weight: 500; line-height: 1.3; padding: 10px 14px; border-radius: 18px;
+            background: #fff; color: #231d12; box-shadow: 0 8px 26px rgba(0,0,0,.35); transition: opacity .35s, transform .35s; text-align: center; }
+  .bubble::after { content: ""; position: absolute; left: 50%; bottom: -8px; margin-left: -8px; border: 8px solid transparent; border-bottom: 0; border-top-color: #fff; }
+  .bubble.hide { opacity: 0; transform: translateY(8px) scale(.95); }
+
+  .offline { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 18px 22px; text-align: center; display: none; }
+
+  .sheet-tabs { display: none; }
+  @media (max-width: 900px) {
+    .brand { top: 12px; left: 12px; right: 12px; max-width: none; padding: 10px 14px; }
+    .brand .rules { display: none; }
+    .tools { top: auto; bottom: calc(42vh + 22px); left: auto; right: 12px; transform: none; }
+    .side { top: auto; left: 12px; right: 12px; bottom: 12px; width: auto; height: 42vh; gap: 8px; }
+    .stats { padding: 10px 12px; }
+    .stats .net { margin: 4px 0 8px; } .stats .net b { font-size: 26px; } .donut { width: 54px; height: 54px; }
+    .tile .v { font-size: 15px; }
+    .feed { left: 12px; right: 12px; bottom: 12px; width: auto; max-height: none; height: calc(42vh - 128px); display: none; }
+    body.show-feed .feed { display: flex; } body.show-feed .shorts { display: none; }
+    .sheet-tabs { display: flex; }
+    .hint { display: none; }
+    .breaking { top: 110px; }
+    .breaking .txt { font-size: 15px; }
+  }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="scene"></div>
+<div id="labels"></div>
+
+<div class="card brand">
+  <div class="logo">📰</div>
+  <div>
+    <div class="name">Scoop <span id="status" class="pill"><i></i><span>connecting…</span></span> <span class="onair" id="onair">ON AIR</span></div>
+    <div class="sub" id="substatus">Opening the newsroom…</div>
+    <div class="rules" id="rules"></div>
+  </div>
+</div>
+
+<div class="tools">
+  <button class="btn" id="voiceBtn" title="Scoop reads the news out loud">🎙️ Voice off</button>
+  <button class="btn" id="soundBtn" title="Sounds on/off">🔇 Sound</button>
+  <button class="btn" id="alarmBtn" title="Play the breaking-news animation (no trade)">🔔 Test alarm</button>
+  <a class="btn" href="/">← Dashboard</a>
+</div>
+
+<div class="breaking" id="breaking">
+  <div class="tag" id="bTag">BREAKING</div>
+  <div class="txt" id="bTxt"></div>
+  <div class="act" id="bAct"></div>
+</div>
+
+<aside class="side">
+  <section class="card stats">
+    <h3>Results · after fees</h3>
+    <div class="net">
+      <div><small>Net profit from news</small><b id="net" class="num">—</b></div>
+      <svg class="donut" viewBox="0 0 80 80" aria-label="win rate">
+        <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,93,115,.35)" stroke-width="10"/>
+        <circle id="donutWin" cx="40" cy="40" r="32" fill="none" stroke="#4ef0a0" stroke-width="10" stroke-linecap="round"
+                stroke-dasharray="0 201" transform="rotate(-90 40 40)" style="transition: stroke-dasharray .8s"/>
+        <text x="40" y="45" text-anchor="middle" id="rate">—</text>
+      </svg>
+    </div>
+    <div class="grid">
+      <div class="tile"><div class="k">📰 Trades</div><div class="v num" id="trades">0</div></div>
+      <div class="tile"><div class="k">💰 Wins</div><div class="v num up" id="wins">0</div></div>
+      <div class="tile"><div class="k">🌧️ Losses</div><div class="v num down" id="losses">0</div></div>
+    </div>
+    <div class="sheet-tabs" style="gap:8px;margin-top:8px">
+      <button class="btn" data-sheet="shorts">🩳 Shorts</button><button class="btn" data-sheet="feed">🗞️ Newsroom</button>
+    </div>
+  </section>
+  <section class="card shorts">
+    <header><h3>Open shorts · <span id="openCount" class="num">0</span></h3><span class="dim" style="font-size:11px">profit ◂ entry ▸ stop</span></header>
+    <div class="list" id="shortList"></div>
+  </section>
+</aside>
+
+<section class="card feed">
+  <h3>🗞️ Newsroom · Binance delisting notices</h3>
+  <div class="list" id="feed"><div class="empty">No news yet</div></div>
+</section>
+
+<div class="hint">🧸 demo account · fake money · click Scoop</div>
+<div class="card offline" id="offline">😴 Can't reach the dashboard server.<br><span class="dim">Start it with news.cmd, then refresh.</span></div>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const coin = (s) => s.replace(/USDT$/, "").replace(/^1000+/, "");
+const money = (n) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(2)}`;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const rand = (a, b) => a + Math.random() * (b - a);
+const ago = (sec) => {
+  const s = Math.max(0, Date.now() / 1000 - sec);
+  return s < 60 ? "just now" : s < 3600 ? `${Math.floor(s / 60)} min ago` : s < 86400 ? `${Math.floor(s / 3600)} h ago` : `${Math.floor(s / 86400)} d ago`;
+};
+const left = (sec) => {
+  const s = Math.max(0, Math.round(sec - Date.now() / 1000));
+  return s >= 3600 ? `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m` : `${Math.floor(s / 60)}m ${s % 60}s`;
+};
+
+// ================================================================ renderer, camera, lights
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+$("scene").appendChild(renderer.domElement);
+const labelRenderer = new CSS2DRenderer({ element: $("labels") });
+const clock = new THREE.Clock();
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x121a36, 22, 60);
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
+const controls = new OrbitControls(camera, renderer.domElement);
+Object.assign(controls, { enableDamping: true, enablePan: false, minDistance: 7, maxDistance: 20, minPolarAngle: 0.6, maxPolarAngle: 1.5 });
+
+scene.add(new THREE.HemisphereLight(0xffe2b8, 0x1b1a3a, 1.05));
+const key = new THREE.DirectionalLight(0xfff1dc, 2.2);
+key.position.set(4, 9, 6); key.castShadow = true; key.shadow.mapSize.set(1024, 1024);
+Object.assign(key.shadow.camera, { left: -7, right: 7, top: 7, bottom: -7 });
+scene.add(key);
+const rimA = new THREE.PointLight(0xffb454, 16, 14); rimA.position.set(-5, 4, -3); scene.add(rimA);
+const rimB = new THREE.PointLight(0x6f8cff, 14, 14); rimB.position.set(5, 3, -4); scene.add(rimB);
+const sirenLight = new THREE.PointLight(0xff3050, 0, 9); sirenLight.position.set(0, 4.3, 0.5); scene.add(sirenLight);
+
+function resize() {
+  renderer.setSize(innerWidth, innerHeight); labelRenderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight;
+  const narrow = innerWidth < 900;
+  camera.position.set(0, narrow ? 5.2 : 4.2, camera.aspect < 1 ? 17 : narrow ? 14 : 12.5);
+  controls.target.set(0, narrow ? 1.3 : 1.8, 0);
+  camera.setViewOffset(innerWidth, innerHeight, narrow ? 0 : 150, narrow ? innerHeight * 0.18 : 0, innerWidth, innerHeight);
+  camera.updateProjectionMatrix();
+}
+addEventListener("resize", resize);
+resize();
+
+// ================================================================ stage, ticker ring, stars, flying papers
+const stage = new THREE.Group(); scene.add(stage);
+const platform = new THREE.Mesh(new THREE.CylinderGeometry(3.7, 3.9, 0.4, 72), new THREE.MeshStandardMaterial({ color: 0x232c55, roughness: 0.55 }));
+platform.position.y = -0.2; platform.receiveShadow = true; stage.add(platform);
+const top = new THREE.Mesh(new THREE.CircleGeometry(3.7, 72), new THREE.MeshStandardMaterial({ color: 0x2f3a6e, roughness: 0.45 }));
+top.rotation.x = -Math.PI / 2; top.position.y = 0.002; top.receiveShadow = true; stage.add(top);
+const rim = new THREE.Mesh(new THREE.TorusGeometry(3.72, 0.05, 12, 120), new THREE.MeshBasicMaterial({ color: 0xffb454 }));
+rim.rotation.x = Math.PI / 2; rim.position.y = 0.01; stage.add(rim);
+
+// the news ticker wrapped around the stage
+const tickCanvas = document.createElement("canvas"); tickCanvas.width = 4096; tickCanvas.height = 96;
+const tick = tickCanvas.getContext("2d");
+const tickTex = new THREE.CanvasTexture(tickCanvas);
+tickTex.colorSpace = THREE.SRGBColorSpace; tickTex.wrapS = THREE.RepeatWrapping; tickTex.repeat.x = 2;
+function drawTicker(items) {
+  tick.fillStyle = "#1a1330"; tick.fillRect(0, 0, 4096, 96);
+  tick.fillStyle = "#ffb454"; tick.fillRect(0, 0, 4096, 5); tick.fillRect(0, 91, 4096, 5);
+  tick.font = "600 44px Fredoka, sans-serif"; tick.textBaseline = "middle";
+  let x = 20;
+  const list = items.length ? items : [{ title: "Scoop is watching Binance delisting news", action: "" }];
+  for (let k = 0; x < 4096 && k < 40; k++) {
+    const it = list[k % list.length];
+    const t = `📰 ${it.title}${it.action ? "  —  " + it.action : ""}     •     `;
+    tick.fillStyle = /SHORT @/.test(it.action || "") ? "#ff8a9b" : "#f6f1e6";
+    tick.fillText(t, x, 50);
+    x += tick.measureText(t).width;
+  }
+  tickTex.needsUpdate = true;
+}
+drawTicker([]);
+const ticker = new THREE.Mesh(new THREE.CylinderGeometry(3.95, 3.95, 0.34, 96, 1, true),
+  new THREE.MeshBasicMaterial({ map: tickTex, side: THREE.FrontSide, toneMapped: false }));
+ticker.position.y = 0.12; stage.add(ticker);
+
+function points(count, place, size, color, opacity) {
+  const pos = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) place(pos, i * 3);
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  return new THREE.Points(g, new THREE.PointsMaterial({ size, color, transparent: true, opacity, depthWrite: false }));
+}
+const stars = points(650, (p, i) => {
+  const r = rand(35, 60), th = rand(0, Math.PI * 2), ph = rand(0.05, 1.35);
+  p[i] = r * Math.sin(ph) * Math.cos(th); p[i + 1] = r * Math.cos(ph) - 4; p[i + 2] = r * Math.sin(ph) * Math.sin(th);
+}, 0.22, 0xfff3dc, 0.85);
+scene.add(stars);
+
+// newspaper texture (also used by the paper Scoop holds)
+function paperTexture(headline) {
+  const c = document.createElement("canvas"); c.width = 512; c.height = 360;
+  const g = c.getContext("2d");
+  g.fillStyle = "#f3ead7"; g.fillRect(0, 0, 512, 360);
+  g.fillStyle = "#231d12"; g.font = "900 44px 'Playfair Display', Georgia, serif"; g.textAlign = "center";
+  g.fillText("THE DAILY DELIST", 256, 58);
+  g.fillRect(24, 74, 464, 4); g.fillRect(24, 82, 464, 1);
+  g.font = "700 28px 'Playfair Display', Georgia, serif"; g.textAlign = "left";
+  const words = (headline || "All quiet on the exchange").split(" ");
+  let line = "", y = 124;
+  for (const w of words) {
+    if (g.measureText(line + w).width > 440 && line) { g.fillText(line, 34, y); line = ""; y += 34; if (y > 230) break; }
+    line += w + " ";
+  }
+  if (y <= 230) g.fillText(line, 34, y);
+  g.fillStyle = "rgba(35,29,18,.35)";
+  for (let r = 0; r < 5; r++) for (let col = 0; col < 3; col++) g.fillRect(34 + col * 150, 262 + r * 16, 130, 7);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const flyers = [];
+for (let i = 0; i < 7; i++) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.63), new THREE.MeshStandardMaterial({ map: paperTexture("Extra! Extra!"), side: THREE.DoubleSide, roughness: 0.9 }));
+  m.userData = { r: rand(5.5, 8), a: rand(0, Math.PI * 2), y: rand(1, 5), s: rand(0.05, 0.12) * (Math.random() < 0.5 ? -1 : 1), spin: rand(0.3, 0.8) };
+  scene.add(m); flyers.push(m);
+}
+
+// ================================================================ Scoop the reporter
+const cream = new THREE.MeshPhysicalMaterial({ color: 0xf3ead7, roughness: 0.35, clearcoat: 0.6 });
+const tvBody = new THREE.MeshPhysicalMaterial({ color: 0xe7b36a, roughness: 0.4, clearcoat: 0.5 });
+const darkMat = new THREE.MeshPhysicalMaterial({ color: 0x14112a, roughness: 0.15, clearcoat: 1 });
+const hatMat = new THREE.MeshPhysicalMaterial({ color: 0x3a2f4f, roughness: 0.6 });
+
+const scoop = new THREE.Group(); stage.add(scoop);
+const hover = new THREE.Group(); scoop.add(hover);
+const shadowTex = (() => {
+  const c = document.createElement("canvas"); c.width = c.height = 128;
+  const g = c.getContext("2d"), gr = g.createRadialGradient(64, 64, 4, 64, 64, 64);
+  gr.addColorStop(0, "rgba(5,5,20,.55)"); gr.addColorStop(1, "rgba(5,5,20,0)");
+  g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+})();
+const blob = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
+blob.rotation.x = -Math.PI / 2; blob.position.y = 0.01; scoop.add(blob);
+
+const body = new THREE.Mesh(new RoundedBoxGeometry(1.25, 1.1, 0.95, 6, 0.36), cream);
+body.position.y = 0.95; body.castShadow = true; hover.add(body);
+const tie = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.5, 4), new THREE.MeshPhysicalMaterial({ color: 0xff5d73, roughness: 0.4 }));
+tie.rotation.x = Math.PI; tie.position.set(0, 1.12, 0.49); hover.add(tie);
+const jet = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.55, 24, 1, true),
+  new THREE.MeshBasicMaterial({ color: 0xffb454, transparent: true, opacity: 0.55, toneMapped: false, side: THREE.DoubleSide }));
+jet.rotation.x = Math.PI; jet.position.y = 0.2; hover.add(jet);
+
+const head = new THREE.Group(); head.position.y = 2.25; hover.add(head);
+const tv = new THREE.Mesh(new RoundedBoxGeometry(1.95, 1.4, 1.25, 6, 0.3), tvBody); tv.castShadow = true; head.add(tv);
+const bezel = new THREE.Mesh(new RoundedBoxGeometry(1.55, 1.05, 0.1, 4, 0.16), darkMat); bezel.position.set(-0.1, 0, 0.6); head.add(bezel);
+for (let k = 0; k < 2; k++) {  // TV knobs
+  const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.08, 20), darkMat);
+  knob.rotation.x = Math.PI / 2; knob.position.set(0.8, 0.22 - k * 0.3, 0.63); head.add(knob);
+}
+const faceCanvas = document.createElement("canvas"); faceCanvas.width = 512; faceCanvas.height = 346;
+const face = faceCanvas.getContext("2d");
+const faceTex = new THREE.CanvasTexture(faceCanvas); faceTex.colorSpace = THREE.SRGBColorSpace;
+const facePlane = new THREE.Mesh(new THREE.PlaneGeometry(1.45, 0.98), new THREE.MeshBasicMaterial({ map: faceTex, transparent: true, toneMapped: false }));
+facePlane.position.set(-0.1, 0, 0.66); head.add(facePlane);
+
+// fedora with a PRESS card, and the siren on top
+const hat = new THREE.Group(); hat.position.y = 0.72; head.add(hat);
+const brim = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.05, 0.06, 40), hatMat); hat.add(brim);
+const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.68, 0.5, 40), hatMat); crown.position.y = 0.27; hat.add(crown);
+const band = new THREE.Mesh(new THREE.CylinderGeometry(0.69, 0.69, 0.12, 40), new THREE.MeshPhysicalMaterial({ color: 0xffb454, roughness: 0.4 }));
+band.position.y = 0.1; hat.add(band);
+const pressCanvas = document.createElement("canvas"); pressCanvas.width = 256; pressCanvas.height = 128;
+{ const g = pressCanvas.getContext("2d"); g.fillStyle = "#fffdf5"; g.fillRect(0, 0, 256, 128);
+  g.fillStyle = "#231d12"; g.font = "900 64px 'Playfair Display', Georgia, serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("PRESS", 128, 68); }
+const pressTex = new THREE.CanvasTexture(pressCanvas); pressTex.colorSpace = THREE.SRGBColorSpace;
+const press = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.21), new THREE.MeshBasicMaterial({ map: pressTex }));
+press.position.set(0.25, 0.22, 0.66); press.rotation.set(0, 0.35, 0.12); hat.add(press);
+const sirenMat = new THREE.MeshPhysicalMaterial({ color: 0xff3050, emissive: 0xff3050, emissiveIntensity: 0.25, transparent: true, opacity: 0.9, roughness: 0.2 });
+const siren = new THREE.Mesh(new THREE.SphereGeometry(0.22, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2), sirenMat);
+siren.position.y = 0.52; hat.add(siren);
+const beam = new THREE.Mesh(new THREE.ConeGeometry(0.9, 3.2, 24, 1, true),
+  new THREE.MeshBasicMaterial({ color: 0xff3050, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }));
+beam.rotation.z = Math.PI / 2; beam.position.set(1.6, 0.6, 0);
+const beamPivot = new THREE.Group(); beamPivot.add(beam); hat.add(beamPivot);
+
+// arms holding the newspaper
+const arms = [-1, 1].map((side) => {
+  const pivot = new THREE.Group(); pivot.position.set(side * 0.72, 1.3, 0.1);
+  const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 0.4, 8, 16), cream); arm.position.y = -0.3; arm.castShadow = true; pivot.add(arm);
+  const hand = new THREE.Mesh(new THREE.SphereGeometry(0.17, 24, 16), tvBody); hand.position.y = -0.62; pivot.add(hand);
+  pivot.rotation.set(-0.9, 0, side * 0.35);
+  hover.add(pivot);
+  return { pivot, side };
+});
+let paperTex = paperTexture("");
+const paper = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.05), new THREE.MeshStandardMaterial({ map: paperTex, side: THREE.DoubleSide, roughness: 0.9 }));
+paper.position.set(0, 0.95, 0.95); paper.rotation.x = -0.25; paper.castShadow = true; hover.add(paper);
+let paperHeadline = "";
+function setPaper(headline) {
+  if (headline === paperHeadline) return;
+  paperHeadline = headline;
+  paperTex.dispose(); paperTex = paperTexture(headline); paper.material.map = paperTex; paper.material.needsUpdate = true;
+}
+
+// speech bubble
+const bubbleEl = document.createElement("div"); bubbleEl.className = "bubble hide";
+const bubble = new CSS2DObject(bubbleEl); bubble.position.set(0, 2.1, 0); head.add(bubble);
+let bubbleTimer = 0, talkingUntil = 0, speaking = false;
+let voiceOn = false;
+try { voiceOn = localStorage.getItem("news-voice") === "1"; } catch (e) { /* storage blocked */ }
+const canSpeak = "speechSynthesis" in window;
+function pickVoice() {
+  const voices = canSpeak ? speechSynthesis.getVoices() : [];
+  return voices.find((v) => /en[-_](US|GB)/i.test(v.lang) && /female|zira|samantha|aria|jenny|google/i.test(v.name))
+      || voices.find((v) => /^en/i.test(v.lang)) || null;
+}
+function speak(text) {
+  if (!voiceOn || !canSpeak) return;
+  const clean = text.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}]/gu, "").replace(/USDT\b/g, "").replace(/·/g, ",");
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(clean);
+  u.voice = pickVoice(); u.rate = 1.04; u.pitch = 1.25;
+  u.onstart = () => { speaking = true; }; u.onend = u.onerror = () => { speaking = false; };
+  speechSynthesis.speak(u);
+}
+function say(text, seconds = 4, voice = false) {
+  bubbleEl.textContent = text; bubbleEl.classList.remove("hide");
+  talkingUntil = performance.now() / 1000 + Math.min(seconds - 0.5, text.split(" ").length * 0.28);
+  clearTimeout(bubbleTimer); bubbleTimer = setTimeout(() => bubbleEl.classList.add("hide"), seconds * 1000);
+  if (voice) speak(text);
+}
+function renderVoice() { $("voiceBtn").textContent = voiceOn ? "🎙️ Voice on" : "🎙️ Voice off"; }
+$("voiceBtn").onclick = () => {
+  voiceOn = !voiceOn; renderVoice();
+  try { localStorage.setItem("news-voice", voiceOn ? "1" : "0"); } catch (e) { /* ignore */ }
+  if (!canSpeak) return say("My voice box doesn't work in this browser 😿", 3);
+  if (voiceOn) say("Good evening! This is Scoop, live from the Binance newsroom.", 4, true);
+  else speechSynthesis.cancel();
+};
+renderVoice();
+
+// ================================================================ face
+const MOODS = { idle: "#ffcf7a", read: "#ffcf7a", alarm: "#ff5d73", happy: "#4ef0a0", sad: "#8fb7ff", sleep: "#6e6690", love: "#ff9ecf" };
+let mood = "idle", moodUntil = 0, baseMood = "read";
+const setMood = (m, s) => { mood = m; moodUntil = performance.now() / 1000 + s; };
+const look = { x: 0, y: 0 };
+function drawFace(t) {
+  const g = face, W = 512, H = 346, c = MOODS[mood] || MOODS.idle;
+  g.clearRect(0, 0, W, H);
+  g.fillStyle = "rgba(255,255,255,.03)"; for (let y = 0; y < H; y += 6) g.fillRect(0, y, W, 2);  // TV scanlines
+  g.save(); g.shadowColor = c; g.shadowBlur = 26; g.fillStyle = c; g.strokeStyle = c; g.lineCap = "round";
+  const lx = look.x * 24, ly = look.y * 14;
+  const eyes = [[176 + lx, 150 + ly], [336 + lx, 150 + ly]];
+  const blink = (t % 4.1) < 0.12 ? 0.1 : 1;
+  const round = (x, y, w, h, r) => { g.beginPath(); g.roundRect(x - w / 2, y - h / 2, w, h, r); g.fill(); };
+  if (mood === "alarm") {
+    const k = 0.8 + Math.sin(t * 18) * 0.2;
+    for (const [x, y] of eyes) { g.beginPath(); g.arc(x, y, 44 * k, 0, Math.PI * 2); g.fill(); }
+    g.font = "900 70px Fredoka"; g.textAlign = "center"; g.fillText("!", 256, 285);
+  } else if (mood === "happy" || mood === "love") {
+    g.lineWidth = 20;
+    for (const [x, y] of eyes) { g.beginPath(); g.arc(x, y + 22, 40, Math.PI * 1.15, Math.PI * 1.85); g.stroke(); }
+  } else if (mood === "sad") {
+    for (const [x, y] of eyes) round(x, y + 18, 60, 56, 24);
+    g.lineWidth = 12;
+    g.beginPath(); g.moveTo(eyes[0][0] - 40, eyes[0][1] - 30); g.lineTo(eyes[0][0] + 30, eyes[0][1] - 50); g.stroke();
+    g.beginPath(); g.moveTo(eyes[1][0] + 40, eyes[1][1] - 30); g.lineTo(eyes[1][0] - 30, eyes[1][1] - 50); g.stroke();
+  } else if (mood === "sleep") {
+    g.lineWidth = 12;
+    for (const [x, y] of eyes) { g.beginPath(); g.moveTo(x - 34, y + 10); g.lineTo(x + 34, y + 10); g.stroke(); }
+    g.font = "600 44px Fredoka";
+    for (let i = 0; i < 3; i++) { const p = (t * 0.35 + i / 3) % 1; g.globalAlpha = 1 - p; g.fillText("z", 400 + p * 60, 110 - p * 90); }
+    g.globalAlpha = 1;
+  } else if (mood === "read") {  // reading: eyes sweep along lines of the newspaper
+    const rx = ((t * 0.8) % 1) * 50 - 25;
+    for (const [x, y] of eyes) round(x + rx, y + 18, 66, 60 * blink, 26);
+  } else {
+    for (const [x, y] of eyes) round(x, y, 68, 92 * blink, 28);
+  }
+  g.lineWidth = 12;
+  const mx = 256 + lx * 0.6, my = 262 + ly * 0.5;
+  const talking = (speaking || performance.now() / 1000 < talkingUntil) && mood !== "sleep" && mood !== "alarm";
+  if (talking) {
+    const o = 10 + Math.abs(Math.sin(t * 16)) * 26 + Math.abs(Math.sin(t * 7.3)) * 8;
+    g.beginPath(); g.ellipse(mx, my, 34, o, 0, 0, Math.PI * 2); g.fill();
+  } else if (mood === "happy" || mood === "love") { g.beginPath(); g.moveTo(mx - 48, my - 12); g.quadraticCurveTo(mx, my + 60, mx + 48, my - 12); g.closePath(); g.fill(); }
+  else if (mood === "sad") { g.beginPath(); g.arc(mx, my + 34, 34, Math.PI * 1.2, Math.PI * 1.8); g.stroke(); }
+  else if (mood === "alarm") { /* the "!" is the mouth */ }
+  else if (mood === "sleep") { g.beginPath(); g.ellipse(mx, my + 6, 12, 14, 0, 0, Math.PI * 2); g.stroke(); }
+  else { g.beginPath(); g.arc(mx, my - 14, 28, Math.PI * 0.2, Math.PI * 0.8); g.stroke(); }
+  g.restore();
+  faceTex.needsUpdate = true;
+}
+
+// ================================================================ open shorts orbiting Scoop
+const shorts = new Map();
+const arrowGeo = new THREE.ConeGeometry(0.2, 0.45, 20);
+function makeShort(p) {
+  const g = new THREE.Group();
+  const arrow = new THREE.Mesh(arrowGeo, new THREE.MeshPhysicalMaterial({ color: 0xff5d73, emissive: 0xff5d73, emissiveIntensity: 0.35, clearcoat: 1, roughness: 0.2 }));
+  arrow.rotation.x = Math.PI; arrow.castShadow = true; g.add(arrow);
+  const el = document.createElement("div"); el.className = "scard";
+  const label = new CSS2DObject(el); label.position.y = 0.55; g.add(label);
+  g.position.set(0, 1.2, 0.8); g.scale.setScalar(0.01);
+  stage.add(g);
+  return { g, arrow, el, data: p };
+}
+function removeShort(s) { stage.remove(s.g); s.g.traverse((o) => { if (o.isCSS2DObject) o.element.remove(); }); }
+
+// confetti
+const CONF = 140;
+const confetti = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.07, 0.11), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, toneMapped: false }), CONF);
+const confParts = Array.from({ length: CONF }, () => ({ p: new THREE.Vector3(), v: new THREE.Vector3(), r: new THREE.Vector3(), life: 0 }));
+const pal = [0xffb454, 0x4ef0a0, 0xff9ecf, 0xf3ead7, 0x6f8cff].map((c) => new THREE.Color(c));
+confParts.forEach((_, i) => confetti.setColorAt(i, pal[i % pal.length]));
+scene.add(confetti);
+function burst(at, n = 80) {
+  let made = 0;
+  for (const c of confParts) {
+    if (c.life > 0 || made >= n) continue;
+    c.p.copy(at); c.v.set(rand(-2.2, 2.2), rand(3, 6), rand(-2.2, 2.2)); c.r.set(rand(0, 6), rand(0, 6), rand(0, 6)); c.life = rand(1.8, 2.8); made++;
+  }
+}
+
+// ================================================================ sound
+let soundOn = false, audio = null;
+try { soundOn = localStorage.getItem("news-sound") === "1"; } catch (e) { /* storage blocked */ }
+function tone(freqs, type = "sine", dur = 0.14) {
+  if (!soundOn) return;
+  audio = audio || new AudioContext();
+  freqs.forEach((f, i) => {
+    const o = audio.createOscillator(), g = audio.createGain(), at = audio.currentTime + i * dur;
+    o.type = type; o.frequency.value = f;
+    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.16, at + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, at + dur * 1.6);
+    o.connect(g).connect(audio.destination); o.start(at); o.stop(at + dur * 1.8);
+  });
+}
+const renderSound = () => { $("soundBtn").textContent = soundOn ? "🔊 Sound" : "🔇 Sound"; };
+$("soundBtn").onclick = () => { soundOn = !soundOn; renderSound(); try { localStorage.setItem("news-sound", soundOn ? "1" : "0"); } catch (e) { /* ignore */ } tone([660, 880]); };
+renderSound();
+
+// ================================================================ breaking news
+let alarmUntil = 0, bannerTimer = 0;
+function breaking(title, action, test = false) {
+  $("bTag").textContent = test ? "BREAKING · TEST ALARM" : "BREAKING";
+  $("bTxt").textContent = title;
+  $("bAct").textContent = action;
+  $("breaking").classList.add("show");
+  clearTimeout(bannerTimer); bannerTimer = setTimeout(() => $("breaking").classList.remove("show"), 7000);
+  alarmUntil = performance.now() / 1000 + 5;
+  setMood("alarm", 3);
+  hover.userData.jump = performance.now() / 1000;
+  tone([880, 660, 880, 660], "square", 0.12);
+}
+$("alarmBtn").onclick = () => {
+  breaking("Binance Will Delist EXAMPLE on 2026-12-31", "🩳 Test only: Scoop would short EXAMPLE here (no trade placed)", true);
+  setTimeout(() => say("Breaking news! Binance will delist Example. This is only a drill, no trade placed! 🫡", 5, true), 1300);
+};
+
+// ================================================================ data
+let first = true, data = null, lastClosed = 0, lastFeedKey = "";
+async function poll() {
+  let n;
+  try {
+    const r = await fetch("/api/news", { cache: "no-store" });
+    if (!r.ok) throw new Error(r.status);
+    n = await r.json();
+    $("offline").style.display = "none";
+  } catch (e) { $("offline").style.display = "block"; baseMood = "sleep"; return; }
+  data = n;
+  const real = n.positions.filter((p) => !p.test);
+
+  // new shorts -> breaking news
+  const live = new Set(real.map((p) => p.symbol));
+  for (const [sym, s] of shorts) if (!live.has(sym)) { removeShort(s); shorts.delete(sym); }
+  for (const p of real) {
+    let s = shorts.get(p.symbol);
+    if (!s) {
+      s = makeShort(p); shorts.set(p.symbol, s);
+      if (!first) {
+        breaking(p.headline || `Delisting news on ${coin(p.symbol)}`, `🩳 Scoop is shorting ${coin(p.symbol)} · stop ${p.sl} · closes in ${left(p.close_at)}`);
+        setTimeout(() => say(`Breaking news! ${p.headline || coin(p.symbol) + " is being delisted"}. I'm shorting ${coin(p.symbol)}! 🩳`, 6, true), 1200);
+      }
+    }
+    s.data = p;
+    s.el.innerHTML = `🩳 ${esc(coin(p.symbol))} <span class="${p.upnl >= 0 ? "up" : "down"}">${money(p.upnl)}</span><small>closes in ${left(p.close_at)}</small>`;
+  }
+  // closed trades -> celebrate or sulk
+  if (!first && n.closed_count > lastClosed) {
+    const won = n.net >= 0;
+    setMood(won ? "happy" : "sad", 3);
+    if (won) burst(new THREE.Vector3(0, 3.4, 0), 70);
+    say(won ? `Story closed with a profit! News total ${money(n.net)} USDT 💰` : `That story went against us. News total ${money(n.net)} USDT 🌧️`, 4.5, true);
+    tone(won ? [784, 988, 1319] : [330, 247], won ? "sine" : "triangle", 0.12);
+  }
+  // a new notice that wasn't a trade -> a quick remark
+  const newest = n.feed[0];
+  const key = newest ? `${newest.time}|${newest.title}` : "";
+  if (!first && key && key !== lastFeedKey && !/SHORT @/.test(newest.action)) say(`Just in: ${newest.title}. ${newest.action}.`, 6, true);
+  lastFeedKey = key; lastClosed = n.closed_count;
+  if (first) say(real.length ? `Hi! I'm Scoop. Covering ${real.length} story${real.length > 1 ? "ies" : ""} right now 📰` : "Hi! I'm Scoop. Watching Binance for delisting news 📰", 5);
+  first = false;
+
+  render(n, real);
+}
+
+function render(n, real) {
+  const age = n.last_poll ? Date.now() / 1000 - n.last_poll : null;
+  const running = age != null && age < 60;
+  $("status").className = `pill ${running ? "run" : "stop"}`;
+  $("status").lastElementChild.textContent = running ? "watching" : n.last_poll ? "stopped" : "not started";
+  baseMood = running ? "read" : "sleep";
+  $("onair").classList.toggle("live", running);
+  const r = n.rules;
+  $("rules").innerHTML = `Shorts a coin when Binance announces its delisting · stop +${Math.round(r.stop * 100)}% (lose ${r.risk} USDT) · closes after ${r.hold / 60} h · ${r.leverage}x`;
+  renderSub();
+
+  const total = n.wins + n.losses, rate = total ? n.wins / total : 0;
+  $("net").textContent = money(n.net); $("net").className = `num ${n.net >= 0 ? "up" : "down"}`;
+  $("trades").textContent = n.closed_count; $("wins").textContent = n.wins; $("losses").textContent = n.losses;
+  $("rate").textContent = total ? `${Math.round(rate * 100)}%` : "—";
+  $("donutWin").setAttribute("stroke-dasharray", `${(rate * 201).toFixed(1)} 201`);
+  $("openCount").textContent = real.length;
+
+  $("shortList").innerHTML = real.length ? real.map((p) => {
+    // 0 = entry, right = toward the stop (price up), left = in profit (price down)
+    const toward = p.mark ? (p.mark - p.entry) / (p.sl - p.entry) : 0;
+    return `<div class="srow"><div class="top"><b>🩳 ${esc(coin(p.symbol))}</b><span class="num ${p.upnl >= 0 ? "up" : "down"}">${money(p.upnl)} USDT</span></div>
+      <div class="meta">entry ${p.entry} · stop ${p.sl} · closes in ${left(p.close_at)}</div>
+      <div class="bar"><i style="left:${clamp(50 + toward * 50, 2, 98).toFixed(1)}%"></i></div>
+      <div class="meta" style="margin-top:6px">${esc(p.headline)}</div></div>`;
+  }).join("") : `<div class="empty">No open shorts.<br>Scoop jumps in as soon as Binance posts a delisting notice 🗞️</div>`;
+
+  $("feed").innerHTML = n.feed.slice(0, 25).map((f) => {
+    const hot = /SHORT @/.test(f.action);
+    return `<div class="nitem"><div class="h">${esc(f.title)}</div><div class="act ${hot ? "hot" : ""}">${hot ? "🩳 " : "· "}${esc(f.action)}</div><time>${ago(f.time)}</time></div>`;
+  }).join("") || `<div class="empty">No delisting notices since Scoop started</div>`;
+
+  drawTicker(n.feed.slice(0, 12));
+  setPaper(real[0]?.headline || n.feed[0]?.title || "");
+}
+function renderSub() {
+  if (!data) return;
+  const age = data.last_poll ? Date.now() / 1000 - data.last_poll : null;
+  $("substatus").textContent = age == null ? "Not started yet · run news.cmd"
+    : age < 60 ? `Last check ${Math.max(0, Math.round(age))} s ago · every ${data.rules.poll} s`
+    : "Stopped · double-click news.cmd to wake Scoop up";
+}
+setInterval(renderSub, 1000);
+document.querySelectorAll("[data-sheet]").forEach((b) => b.onclick = () => document.body.classList.toggle("show-feed", b.dataset.sheet === "feed"));
+
+// click Scoop
+const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
+let downAt = null;
+renderer.domElement.addEventListener("pointerdown", (e) => { downAt = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener("pointermove", (e) => { look.tx = (e.clientX / innerWidth) * 2 - 1; look.ty = (e.clientY / innerHeight) * 2 - 1; });
+const POKES = ["Hold the front page! 🗞️", "No scoop yet, I'm on it 🕵️", "Boop! Press pass, please 🪪", "Reading the fine print… 🧐", "Delistings are my beat 📰"];
+renderer.domElement.addEventListener("pointerup", (e) => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
+  pointer.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  raycaster.setFromCamera(pointer, camera);
+  if (raycaster.intersectObjects([tv, body, paper, crown], false).length) {
+    setMood("love", 1.6); hover.userData.jump = performance.now() / 1000;
+    say(POKES[Math.floor(Math.random() * POKES.length)], 2.5); tone([880, 1175], "sine", 0.07);
+  }
+});
+
+// live anchor: Scoop presents the latest headlines in turn, with a status update in between
+let segment = 0;
+setInterval(() => {
+  if (!data || !bubbleEl.classList.contains("hide") || speaking) return;
+  if (baseMood === "sleep") return say("Zzz… start news.cmd to wake me 😴", 3);
+  const feed = data.feed.slice(0, 6);
+  const real = data.positions.filter((p) => !p.test);
+  segment++;
+  if (segment % 3 === 0 || !feed.length) {
+    const lines = [
+      real.length ? `Live update: I'm covering ${real.length} delisting stor${real.length > 1 ? "ies" : "y"} right now 🩳` : "Live from the newsroom: no open shorts, all quiet ☕",
+      data.closed_count ? `Scoreboard: ${data.closed_count} news trades, ${data.wins} wins, ${money(data.net)} USDT 📊` : "Still waiting for my first big scoop 🕵️",
+    ];
+    return say(lines[segment % lines.length], 5, true);
+  }
+  const f = feed[(Math.floor(segment / 3) * 2 + (segment % 3) - 1) % feed.length];
+  say(`📰 ${f.title}. ${f.action}.`, 7, true);
+}, 12000);
+
+// ================================================================ animation
+const tmp = new THREE.Object3D(), v = new THREE.Vector3();
+let lastFace = 0;
+function animate() {
+  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime, now = performance.now() / 1000;
+  if (now > moodUntil) mood = baseMood;
+
+  const jumpT = now - (hover.userData.jump || -9);
+  const jump = jumpT < 0.7 ? Math.sin((jumpT / 0.7) * Math.PI) * 0.6 : 0;
+  hover.position.y = 0.4 + Math.sin(t * 1.5) * 0.08 + jump;
+  blob.scale.setScalar(1 - (hover.position.y - 0.4) * 0.6);
+  look.x += ((look.tx || 0) - look.x) * 0.08; look.y += ((look.ty || 0) - look.y) * 0.08;
+  head.rotation.y = look.x * 0.3; head.rotation.x = look.y * 0.1 + (mood === "read" ? 0.12 : 0);
+  head.rotation.z = mood === "sad" ? -0.12 : mood === "love" ? Math.sin(t * 8) * 0.08 : Math.sin(t * 0.8) * 0.03;
+  scoop.rotation.y = Math.sin(t * 0.35) * 0.1;
+  jet.scale.set(1, 0.8 + Math.sin(t * 30) * 0.15 + (jump ? 0.5 : 0), 1);
+
+  // the newspaper: held for reading, flung up on breaking news
+  const alarm = now < alarmUntil;
+  const up = alarm ? 1 : 0;
+  paper.position.y += ((0.95 + up * 0.9) - paper.position.y) * 0.12;
+  paper.rotation.x += ((-0.25 + up * -0.5 + Math.sin(t * 2) * 0.03) - paper.rotation.x) * 0.12;
+  for (const a of arms) {
+    const zt = a.side * (alarm ? 1.2 + Math.sin(t * 16) * 0.2 : 0.35);
+    a.pivot.rotation.z += (zt - a.pivot.rotation.z) * 0.15;
+    a.pivot.rotation.x += ((alarm ? -2.2 : -0.9) - a.pivot.rotation.x) * 0.15;
+  }
+
+  // siren
+  beamPivot.rotation.y += dt * (alarm ? 9 : 0.8);
+  beam.material.opacity = alarm ? 0.22 + Math.sin(t * 20) * 0.08 : 0;
+  sirenMat.emissiveIntensity = alarm ? 1.6 + Math.sin(t * 24) : 0.25 + Math.sin(t * 2) * 0.1;
+  sirenLight.intensity = alarm ? 18 + Math.sin(t * 24) * 10 : 0;
+
+  if (t - lastFace > 1 / 30) { drawFace(t); lastFace = t; }
+
+  // ticker and flying papers
+  tickTex.offset.x = (t * 0.015) % 1;
+  ticker.rotation.y = -t * 0.04;
+  for (const f of flyers) {
+    const u = f.userData; u.a += dt * u.s;
+    f.position.set(Math.cos(u.a) * u.r, u.y + Math.sin(t * 0.6 + u.r) * 0.4, Math.sin(u.a) * u.r);
+    f.rotation.set(Math.sin(t * u.spin) * 0.6, t * u.spin, Math.cos(t * u.spin) * 0.4);
+  }
+  stars.rotation.y += dt * 0.004;
+
+  // shorts orbit, arrows bob downward
+  let i = 0; const count = shorts.size || 1;
+  for (const s of shorts.values()) {
+    const a = (i / count) * Math.PI * 2 + t * 0.15;
+    v.set(Math.cos(a) * 2.8, 2.3 + Math.sin(t * 1.4 + i) * 0.15, Math.sin(a) * 2.8);
+    s.g.position.lerp(v, 1 - Math.exp(-dt * 2.5));
+    s.g.scale.setScalar(s.g.scale.x + (1 - s.g.scale.x) * 0.08);
+    s.arrow.position.y = -((t * 0.8 + i * 0.3) % 1) * 0.25;
+    i++;
+  }
+
+  // confetti
+  let any = false;
+  confParts.forEach((c, k) => {
+    if (c.life > 0) {
+      any = true; c.life -= dt; c.v.y -= 7 * dt; c.v.multiplyScalar(0.985); c.p.addScaledVector(c.v, dt);
+      tmp.position.copy(c.p); tmp.rotation.set(c.r.x * t, c.r.y * t, c.r.z * t); tmp.scale.setScalar(c.life > 0 && c.p.y > 0 ? 1 : 0);
+    } else tmp.scale.setScalar(0);
+    tmp.updateMatrix(); confetti.setMatrixAt(k, tmp.matrix);
+  });
+  confetti.instanceMatrix.needsUpdate = true; confetti.visible = any;
+
+  controls.update();
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+
+poll();
+setInterval(poll, 4000);
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

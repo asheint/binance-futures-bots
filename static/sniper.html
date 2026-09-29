@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sniper Bot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-top: #0e2227;
+    --card: rgba(14, 38, 42, 0.68);
+    --card-line: rgba(182, 243, 107, 0.18);
+    --text: #eef7f0;
+    --muted: #a9c2b5;
+    --faint: #6f8a7e;
+    --lime: #b6f36b;
+    --orange: #ff9f43;
+    --win: #4ef0a0;
+    --loss: #ff6b7d;
+    --radius: 20px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body {
+    background: radial-gradient(120% 90% at 50% 0%, #1b3d3a 0%, var(--bg-top) 50%, #071316 100%);
+    color: var(--text); font-family: "Fredoka", ui-rounded, "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased;
+  }
+  #scene { position: fixed; inset: 0; }
+  #labels { position: fixed; inset: 0; pointer-events: none; }
+  .num { font-variant-numeric: tabular-nums; }
+  .up { color: var(--win); } .down { color: var(--loss); } .dim { color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--card-line); border-radius: var(--radius);
+          backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
+          box-shadow: 0 10px 40px rgba(0, 8, 10, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05); }
+  .card h3 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+  .brand { position: fixed; top: 16px; left: 16px; padding: 14px 18px; display: flex; gap: 14px; align-items: flex-start; max-width: 380px; }
+  .brand .logo { font-size: 30px; line-height: 1; filter: drop-shadow(0 0 12px rgba(182, 243, 107, .5)); }
+  .brand .name { font-size: 22px; font-weight: 700; }
+  .brand .sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .brand .rules { font-size: 12px; color: var(--faint); margin-top: 8px; line-height: 1.4; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 3px 10px;
+          border-radius: 99px; background: rgba(255,255,255,.08); vertical-align: middle; }
+  .pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+  .pill.run i { background: var(--win); box-shadow: 0 0 10px var(--win); animation: pulse 1.6s infinite; }
+  .pill.aim i { background: var(--lime); box-shadow: 0 0 10px var(--lime); animation: pulse .6s infinite; }
+  .pill.pause i { background: var(--orange); }
+  .pill.stop i { background: var(--loss); }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .seg { display: inline-flex; padding: 3px; border-radius: 99px; background: rgba(255,255,255,.07); margin-top: 10px; }
+  .seg button { font: inherit; font-size: 13px; font-weight: 600; color: var(--muted); background: none; border: 0; padding: 5px 12px; border-radius: 99px; cursor: pointer; }
+  .seg button.on { background: var(--lime); color: #10241c; }
+  .seg button.on.paused { background: var(--orange); }
+
+  .side { position: fixed; top: 16px; right: 16px; bottom: 16px; width: 340px; display: flex; flex-direction: column; gap: 12px; }
+  .stats { padding: 16px 18px; }
+  .stats .net { display: flex; align-items: flex-end; justify-content: space-between; margin: 8px 0 14px; }
+  .stats .net b { font-size: 36px; font-weight: 700; line-height: 1; }
+  .stats .net small { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .donut { width: 74px; height: 74px; flex: none; }
+  .donut text { fill: var(--text); font: 600 15px "Fredoka", sans-serif; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .tile { background: rgba(255,255,255,.05); border-radius: 14px; padding: 8px 10px; }
+  .tile .k { font-size: 11px; color: var(--muted); }
+  .tile .v { font-size: 18px; font-weight: 600; margin-top: 1px; }
+
+  .trades { padding: 14px 8px 8px 16px; display: flex; flex-direction: column; min-height: 0; flex: 1; }
+  .trades header { display: flex; justify-content: space-between; align-items: center; padding-right: 8px; margin-bottom: 8px; }
+  .list { overflow-y: auto; padding-right: 6px; flex: 1; scrollbar-width: thin; scrollbar-color: rgba(182,243,107,.3) transparent; }
+  .trow { padding: 9px 10px; border-radius: 14px; background: rgba(255,255,255,.05); margin-bottom: 8px; }
+  .trow .top { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+  .trow .top b { font-size: 15px; }
+  .trow .top .pnl { margin-left: auto; }
+  .chip { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 6px; }
+  .chip.LONG { background: rgba(78,240,160,.16); color: var(--win); } .chip.SHORT { background: rgba(255,107,125,.16); color: var(--loss); }
+  .chip.grade { background: rgba(182,243,107,.16); color: var(--lime); }
+  .trow .meta { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.35; }
+  .bar { position: relative; height: 8px; border-radius: 99px; margin-top: 8px;
+         background: linear-gradient(90deg, rgba(255,107,125,.45), rgba(255,255,255,.08) 33%, rgba(78,240,160,.45)); }
+  .bar i { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: #fff;
+           box-shadow: 0 0 8px rgba(255,255,255,.7); transition: left .8s ease; }
+  .bar b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: rgba(255,255,255,.5); }
+  .x-btn { width: 24px; height: 24px; border-radius: 50%; border: 0; background: rgba(255,255,255,.08); color: var(--muted);
+           font: 600 12px "Fredoka", sans-serif; cursor: pointer; }
+  .x-btn:hover { background: var(--loss); color: #fff; }
+  .x-btn:disabled { opacity: .35; cursor: default; background: rgba(255,255,255,.08); color: var(--muted); }
+  .closeall { font: inherit; font-size: 12px; font-weight: 600; color: var(--loss); background: rgba(255,107,125,.12);
+              border: 1px solid rgba(255,107,125,.35); border-radius: 99px; padding: 3px 10px; cursor: pointer; }
+  .closeall.armed { background: var(--loss); color: #fff; }
+  .closeall:disabled { opacity: .4; cursor: default; }
+  .empty { color: var(--muted); font-size: 14px; padding: 18px 8px; text-align: center; line-height: 1.45; }
+
+  .watch { position: fixed; left: 16px; bottom: 16px; width: 390px; max-height: calc(100vh - 262px); padding: 12px 8px 10px 16px;
+           display: flex; flex-direction: column; }
+  .tabs { display: flex; gap: 6px; padding-right: 8px; }
+  .tabs button { font: inherit; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+                 background: none; border: 0; padding: 4px 10px; border-radius: 99px; cursor: pointer; }
+  .tabs button.on { background: rgba(182,243,107,.14); color: var(--lime); }
+  .watch .list { margin-top: 8px; }
+  .coin { padding: 8px 8px 8px 0; border-top: 1px solid rgba(255,255,255,.06); animation: pop .35s ease; }
+  .coin:first-child { border-top: 0; }
+  .coin .h { display: flex; gap: 8px; align-items: center; font-weight: 600; font-size: 14px; }
+  .coin .h .p { margin-left: auto; font-size: 12px; color: var(--muted); font-weight: 500; }
+  .coin .ctx { font-size: 12px; color: var(--faint); margin-top: 2px; }
+  .line { font-size: 13px; margin-top: 5px; padding: 5px 8px; border-radius: 10px; background: rgba(182,243,107,.07); line-height: 1.35; }
+  .line small { display: block; color: var(--faint); font-size: 11px; }
+  .skipped { font-size: 12px; color: var(--faint); padding: 8px 0; line-height: 1.5; }
+  .msg { display: flex; gap: 10px; align-items: flex-start; padding: 6px 8px 6px 0; animation: pop .35s ease; }
+  .msg .ico { width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; font-size: 14px; flex: none; background: rgba(255,255,255,.07); }
+  .msg p { margin: 0; font-size: 13px; line-height: 1.3; } .msg time { font-size: 11px; color: var(--faint); }
+  @keyframes pop { from { opacity: 0; transform: translateY(6px); } }
+
+  .tools { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }
+  .btn { font: inherit; font-size: 13px; color: var(--text); background: var(--card); border: 1px solid var(--card-line); border-radius: 99px;
+         padding: 7px 14px; cursor: pointer; backdrop-filter: blur(10px); text-decoration: none; white-space: nowrap; }
+  .btn:hover { background: rgba(40, 80, 60, .8); }
+  .hint { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); font-size: 12px; color: var(--muted); padding: 6px 12px;
+          border-radius: 99px; background: rgba(5, 16, 18, .55); white-space: nowrap; }
+
+  .tlabel { font-size: 11px; font-weight: 600; padding: 4px 9px; border-radius: 10px; white-space: nowrap; color: #fff; text-align: center;
+            background: rgba(8, 24, 26, .8); border: 1px solid rgba(182,243,107,.35); line-height: 1.3; transition: opacity .3s; }
+  .tlabel small { display: block; font-size: 10px; color: var(--muted); font-weight: 500; }
+  .tlabel.live { border-color: var(--lime); box-shadow: 0 0 14px rgba(182,243,107,.5); }
+  .bang { font: 700 26px "Fredoka", sans-serif; color: var(--lime); text-shadow: 0 0 14px rgba(182,243,107,.9); transition: transform .5s, opacity .8s; }
+  .bubble { position: relative; max-width: 250px; font-size: 15px; font-weight: 500; line-height: 1.3; padding: 10px 14px; border-radius: 18px;
+            background: #fff; color: #10241c; box-shadow: 0 8px 26px rgba(0,0,0,.35); transition: opacity .35s, transform .35s; text-align: center; }
+  .bubble::after { content: ""; position: absolute; left: 50%; bottom: -8px; margin-left: -8px; border: 8px solid transparent; border-bottom: 0; border-top-color: #fff; }
+  .bubble.hide { opacity: 0; transform: translateY(8px) scale(.95); }
+  .offline { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 18px 22px; text-align: center; display: none; }
+
+  .sheet-tabs { display: none; }
+  @media (max-width: 900px) {
+    .brand { top: 12px; left: 12px; right: 12px; max-width: none; padding: 10px 14px; }
+    .brand .rules { display: none; }
+    .tools { top: auto; bottom: calc(42vh + 22px); left: auto; right: 12px; transform: none; }
+    .side { top: auto; left: 12px; right: 12px; bottom: 12px; width: auto; height: 42vh; gap: 8px; }
+    .stats { padding: 10px 12px; }
+    .stats .net { margin: 4px 0 8px; } .stats .net b { font-size: 26px; } .donut { width: 54px; height: 54px; }
+    .tile .v { font-size: 15px; }
+    .watch { left: 12px; right: 12px; bottom: 12px; width: auto; max-height: none; height: calc(42vh - 128px); display: none; }
+    body.show-watch .watch { display: flex; } body.show-watch .trades { display: none; }
+    .sheet-tabs { display: flex; }
+    .hint { display: none; }
+  }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="scene"></div>
+<div id="labels"></div>
+
+<div class="card brand">
+  <div class="logo">🎯</div>
+  <div>
+    <div class="name">Sniper <span id="status" class="pill"><i></i><span>connecting…</span></span></div>
+    <div class="sub" id="substatus">Loading the scope…</div>
+    <div class="seg" id="tradeSeg" role="group" aria-label="Trading">
+      <button data-trading="1" title="Fire when a trigger candle closes at a line">Trading on</button>
+      <button data-trading="0" title="Keep drawing lines, but don't fire">Paused</button>
+    </div>
+    <div class="rules" id="rules"></div>
+  </div>
+</div>
+
+<div class="tools">
+  <button class="btn" id="soundBtn" title="Sounds on/off">🔇 Sound</button>
+  <a class="btn" href="/">← Dashboard</a>
+</div>
+
+<aside class="side">
+  <section class="card stats">
+    <h3>Results · after fees</h3>
+    <div class="net">
+      <div><small>Net profit</small><b id="net" class="num">—</b></div>
+      <svg class="donut" viewBox="0 0 80 80" aria-label="win rate">
+        <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,107,125,.35)" stroke-width="10"/>
+        <circle id="donutWin" cx="40" cy="40" r="32" fill="none" stroke="#4ef0a0" stroke-width="10" stroke-linecap="round"
+                stroke-dasharray="0 201" transform="rotate(-90 40 40)" style="transition: stroke-dasharray .8s"/>
+        <text x="40" y="45" text-anchor="middle" id="rate">—</text>
+      </svg>
+    </div>
+    <div class="grid">
+      <div class="tile"><div class="k">🎯 Hits</div><div class="v num up" id="wins">0</div></div>
+      <div class="tile"><div class="k">💨 Misses</div><div class="v num down" id="losses">0</div></div>
+      <div class="tile"><div class="k">🎈 Open PnL</div><div class="v num" id="upnl">—</div></div>
+    </div>
+    <div class="sheet-tabs" style="gap:8px;margin-top:8px">
+      <button class="btn" data-sheet="trades">🎯 Trades</button><button class="btn" data-sheet="watch">📏 Lines</button>
+    </div>
+  </section>
+  <section class="card trades">
+    <header><h3>Open trades · <span id="openCount" class="num">0</span></h3>
+      <button class="closeall" id="closeAll" title="Close every open sniper trade at market">✋ Close all</button></header>
+    <div class="dim" style="font-size:11px;margin:-2px 0 6px">stop ◂ entry ▸ target · ✕ closes one trade now</div>
+    <div class="list" id="tradeList"></div>
+  </section>
+</aside>
+
+<section class="card watch">
+  <div class="tabs" id="leftTabs"><button data-tab="lines" class="on">📏 Lines I'm watching</button><button data-tab="diary">📓 Diary</button></div>
+  <div class="list" id="lines"></div>
+  <div class="list" id="diary" hidden></div>
+</section>
+
+<div class="hint">🧸 demo account · fake money · waits for price to reach its lines, then fires</div>
+<div class="card offline" id="offline">😴 Can't reach the dashboard server.<br><span class="dim">Start it with sniper.cmd, then refresh.</span></div>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const coin = (s) => s.replace(/USDT$/, "").replace(/^1000+/, "");
+const money = (n) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(2)}`;
+const px = (p) => p >= 1 ? p.toLocaleString(undefined, { maximumFractionDigits: 2 }) : Number(p.toPrecision(5)).toString();
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const rand = (a, b) => a + Math.random() * (b - a);
+const ago = (sec) => { const s = Math.max(0, Date.now() / 1000 - sec); return s < 60 ? "just now" : s < 3600 ? `${Math.floor(s / 60)} min ago` : s < 86400 ? `${Math.floor(s / 3600)} h ago` : `${Math.floor(s / 86400)} d ago`; };
+
+// ================================================================ scene
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+$("scene").appendChild(renderer.domElement);
+const labelRenderer = new CSS2DRenderer({ element: $("labels") });
+const clock = new THREE.Clock();
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x0e2227, 24, 60);
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
+const controls = new OrbitControls(camera, renderer.domElement);
+Object.assign(controls, { enableDamping: true, enablePan: false, minDistance: 8, maxDistance: 22, minPolarAngle: 0.55, maxPolarAngle: 1.45 });
+scene.add(new THREE.HemisphereLight(0xdfffe6, 0x0d2420, 1.05));
+const key = new THREE.DirectionalLight(0xffffff, 2.1);
+key.position.set(4, 9, 6); key.castShadow = true; key.shadow.mapSize.set(1024, 1024);
+Object.assign(key.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8 });
+scene.add(key);
+const rimA = new THREE.PointLight(0xb6f36b, 14, 14); rimA.position.set(-5, 4, -3); scene.add(rimA);
+const rimB = new THREE.PointLight(0xff9f43, 12, 14); rimB.position.set(5, 3, -4); scene.add(rimB);
+
+function resize() {
+  renderer.setSize(innerWidth, innerHeight); labelRenderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight;
+  const narrow = innerWidth < 900;
+  camera.position.set(0, narrow ? 6 : 5.2, camera.aspect < 1 ? 19 : narrow ? 15.5 : 13.5);
+  controls.target.set(0, narrow ? 1.2 : 1.6, 0);
+  camera.setViewOffset(innerWidth, innerHeight, narrow ? 0 : 150, narrow ? innerHeight * 0.18 : 0, innerWidth, innerHeight);
+  camera.updateProjectionMatrix();
+}
+addEventListener("resize", resize); resize();
+
+const stage = new THREE.Group(); scene.add(stage);
+const ground = new THREE.Mesh(new THREE.CylinderGeometry(5.6, 5.9, 0.4, 80), new THREE.MeshStandardMaterial({ color: 0x1d3b33, roughness: 0.8 }));
+ground.position.y = -0.2; ground.receiveShadow = true; stage.add(ground);
+const grass = new THREE.Mesh(new THREE.CircleGeometry(5.6, 80), new THREE.MeshStandardMaterial({ color: 0x2d5a45, roughness: 0.9 }));
+grass.rotation.x = -Math.PI / 2; grass.position.y = 0.002; grass.receiveShadow = true; stage.add(grass);
+const rim = new THREE.Mesh(new THREE.TorusGeometry(5.62, 0.05, 12, 140), new THREE.MeshBasicMaterial({ color: 0xb6f36b })); rim.rotation.x = Math.PI / 2; rim.position.y = 0.01; stage.add(rim);
+// a few cute bushes and rocks
+for (let i = 0; i < 14; i++) {
+  const a = rand(0, Math.PI * 2), r = rand(2.2, 5.2);
+  if (Math.abs(Math.sin(a)) > 0.5 && Math.sin(a) > 0 && r > 3.8) continue;  // keep the front clear
+  const bush = new THREE.Mesh(new THREE.SphereGeometry(rand(0.18, 0.34), 16, 12), new THREE.MeshStandardMaterial({ color: [0x3f8a5a, 0x4f9e63, 0x2f7a4c][i % 3], roughness: 0.8 }));
+  bush.position.set(Math.cos(a) * r, 0.12, Math.sin(a) * r); bush.scale.y = 0.75; bush.castShadow = true; stage.add(bush);
+}
+function points(count, place, size, color, opacity) {
+  const pos = new Float32Array(count * 3); for (let i = 0; i < count; i++) place(pos, i * 3);
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  return new THREE.Points(g, new THREE.PointsMaterial({ size, color, transparent: true, opacity, depthWrite: false }));
+}
+const stars = points(650, (p, i) => { const r = rand(35, 60), th = rand(0, Math.PI * 2), ph = rand(0.05, 1.35);
+  p[i] = r * Math.sin(ph) * Math.cos(th); p[i + 1] = r * Math.cos(ph) - 4; p[i + 2] = r * Math.sin(ph) * Math.sin(th); }, 0.22, 0xf0fff4, 0.85);
+scene.add(stars);
+const fireflies = points(90, (p, i) => { const r = rand(1.5, 6.5), th = rand(0, Math.PI * 2); p[i] = r * Math.cos(th); p[i + 1] = rand(0.2, 4); p[i + 2] = r * Math.sin(th); }, 0.08, 0xd9ff8a, 0.9);
+scene.add(fireflies);
+
+// ================================================================ the Sniper robot
+const body = new THREE.MeshPhysicalMaterial({ color: 0xe9f3e6, roughness: 0.35, clearcoat: 0.7 });
+const olive = new THREE.MeshPhysicalMaterial({ color: 0x5f7f4a, roughness: 0.5, clearcoat: 0.4 });
+const dark = new THREE.MeshPhysicalMaterial({ color: 0x0f1d1a, roughness: 0.2, clearcoat: 1 });
+const bot = new THREE.Group(); stage.add(bot);
+const hover = new THREE.Group(); bot.add(hover);
+const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.62, 0.45, 10, 32), body); torso.scale.set(1, 0.85, 0.9); torso.position.y = 0.95; torso.castShadow = true; hover.add(torso);
+const vest = new THREE.Mesh(new THREE.CylinderGeometry(0.64, 0.6, 0.5, 32, 1, true), olive); vest.position.y = 1.0; hover.add(vest);
+const jet = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.55, 24, 1, true), new THREE.MeshBasicMaterial({ color: 0xb6f36b, transparent: true, opacity: 0.5, toneMapped: false, side: THREE.DoubleSide }));
+jet.rotation.x = Math.PI; jet.position.y = 0.05; hover.add(jet);
+const head = new THREE.Group(); head.position.y = 2.15; hover.add(head);
+const skull = new THREE.Mesh(new RoundedBoxGeometry(1.75, 1.35, 1.3, 6, 0.45), body); skull.castShadow = true; head.add(skull);
+// helmet with a laser sight
+const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.98, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2.3), olive); helmet.position.y = 0.2; helmet.scale.set(1, 0.72, 0.9); head.add(helmet);
+const sight = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.7, 16), dark); sight.rotation.x = Math.PI / 2; sight.position.set(0.55, 0.72, 0.1); head.add(sight);
+const sightTip = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), new THREE.MeshBasicMaterial({ color: 0xff3b3b, toneMapped: false })); sightTip.position.set(0.55, 0.72, 0.47); head.add(sightTip);
+// the big scope eye (canvas: iris + reticle)
+const eyeRing = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.09, 16, 48), dark); eyeRing.position.set(0, -0.02, 0.66); head.add(eyeRing);
+const eyeCanvas = document.createElement("canvas"); eyeCanvas.width = eyeCanvas.height = 256;
+const eyeCtx = eyeCanvas.getContext("2d");
+const eyeTex = new THREE.CanvasTexture(eyeCanvas); eyeTex.colorSpace = THREE.SRGBColorSpace;
+const eye = new THREE.Mesh(new THREE.CircleGeometry(0.48, 48), new THREE.MeshBasicMaterial({ map: eyeTex, toneMapped: false })); eye.position.set(0, -0.02, 0.665); head.add(eye);
+const cheeks = [-1, 1].map((s) => { const c = new THREE.Mesh(new THREE.CircleGeometry(0.12, 24), new THREE.MeshBasicMaterial({ color: 0xff9fb8, transparent: true, opacity: 0.5 }));
+  c.position.set(s * 0.7, -0.35, 0.66); head.add(c); return c; });
+const arms = [-1, 1].map((side) => {
+  const pivot = new THREE.Group(); pivot.position.set(side * 0.7, 1.35, 0);
+  const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 0.42, 8, 16), body); arm.position.y = -0.32; arm.castShadow = true; pivot.add(arm);
+  const hand = new THREE.Mesh(new THREE.SphereGeometry(0.17, 20, 14), olive); hand.position.y = -0.68; pivot.add(hand);
+  pivot.rotation.z = side * 0.3; hover.add(pivot); return { pivot, side };
+});
+const shadowTex = (() => { const c = document.createElement("canvas"); c.width = c.height = 128; const g = c.getContext("2d"), gr = g.createRadialGradient(64, 64, 4, 64, 64, 64);
+  gr.addColorStop(0, "rgba(0,10,8,.55)"); gr.addColorStop(1, "rgba(0,10,8,0)"); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c); })();
+const blob = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false })); blob.rotation.x = -Math.PI / 2; blob.position.y = 0.01; bot.add(blob);
+
+const bubbleEl = document.createElement("div"); bubbleEl.className = "bubble hide";
+const bubble = new CSS2DObject(bubbleEl); bubble.position.set(0, 1.55, 0); head.add(bubble);
+let bubbleTimer = 0;
+function say(text, seconds = 4) { bubbleEl.textContent = text; bubbleEl.classList.remove("hide"); clearTimeout(bubbleTimer); bubbleTimer = setTimeout(() => bubbleEl.classList.add("hide"), seconds * 1000); }
+
+let mood = "watch", moodUntil = 0, baseMood = "watch";
+const setMood = (m, s) => { mood = m; moodUntil = performance.now() / 1000 + s; };
+const look = { x: 0, y: 0 };
+function drawEye(t) {
+  const g = eyeCtx, c = 128;
+  g.clearRect(0, 0, 256, 256);
+  const col = mood === "fire" ? "#ff5a5a" : mood === "happy" ? "#4ef0a0" : mood === "sad" ? "#8fb7ff" : mood === "sleep" ? "#51685c" : "#b6f36b";
+  const bg = g.createRadialGradient(c, c, 10, c, c, 128); bg.addColorStop(0, "#15302a"); bg.addColorStop(1, "#050d0b");
+  g.fillStyle = bg; g.beginPath(); g.arc(c, c, 128, 0, Math.PI * 2); g.fill();
+  if (mood === "sleep") {
+    g.strokeStyle = col; g.lineWidth = 12; g.lineCap = "round"; g.beginPath(); g.arc(c, c + 10, 50, Math.PI * 0.15, Math.PI * 0.85); g.stroke();
+  } else if (mood === "happy") {
+    g.strokeStyle = col; g.lineWidth = 16; g.lineCap = "round"; g.beginPath(); g.arc(c, c + 30, 52, Math.PI * 1.15, Math.PI * 1.85); g.stroke();
+  } else {
+    const zoom = mood === "aim" || mood === "fire" ? 1.35 + Math.sin(t * 8) * 0.05 : 1;
+    const ix = c + look.x * 26 + (mood === "scan" ? Math.sin(t * 2.4) * 34 : 0), iy = c + look.y * 18;
+    g.save(); g.shadowColor = col; g.shadowBlur = 24;
+    g.fillStyle = col; g.globalAlpha = 0.9; g.beginPath(); g.arc(ix, iy, 46 * zoom, 0, Math.PI * 2); g.fill();
+    g.globalAlpha = 1; g.fillStyle = "#07120f"; g.beginPath(); g.arc(ix, iy, 20 * zoom, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "rgba(255,255,255,.85)"; g.beginPath(); g.arc(ix + 14, iy - 16, 8, 0, Math.PI * 2); g.fill(); g.restore();
+    // reticle
+    g.strokeStyle = mood === "fire" ? "rgba(255,90,90,.9)" : "rgba(182,243,107,.55)"; g.lineWidth = 3;
+    g.beginPath(); g.arc(c, c, 92, 0, Math.PI * 2); g.stroke();
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { g.beginPath(); g.moveTo(c + dx * 60, c + dy * 60); g.lineTo(c + dx * 112, c + dy * 112); g.stroke(); }
+  }
+  eyeTex.needsUpdate = true;
+}
+
+// ================================================================ targets (one per coin with lines)
+const targets = new Map();
+function targetBoard() {
+  const g = new THREE.Group();
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.1, 10), new THREE.MeshStandardMaterial({ color: 0x8a6a45, roughness: 0.8 }));
+  post.position.y = 0.55; post.castShadow = true; g.add(post);
+  const face = new THREE.Group(); face.position.y = 1.35; g.add(face);
+  const rings = [0xffffff, 0xff5a5a, 0xffffff, 0xff5a5a, 0xb6f36b];
+  const mats = [];
+  rings.forEach((col, i) => {
+    const m = new THREE.MeshStandardMaterial({ color: col, roughness: 0.5, emissive: col, emissiveIntensity: 0.05 });
+    mats.push(m);
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.5 - i * 0.1, 0.5 - i * 0.1, 0.06 + i * 0.012, 36), m);
+    disc.rotation.x = Math.PI / 2; disc.castShadow = i === 0; face.add(disc);
+  });
+  const el = document.createElement("div"); el.className = "tlabel";
+  const label = new CSS2DObject(el); label.position.set(0, 2.15, 0); g.add(label);
+  return { g, face, mats, el, shake: 0 };
+}
+function layoutTargets() {
+  const list = [...targets.values()];
+  const n = list.length;
+  // left and right arcs around the robot; the spot right behind him stays clear, the front stays open
+  const slots = [];
+  const half = Math.ceil(n / 2);
+  for (let i = 0; i < half; i++) slots.push(Math.PI * (0.95 + (half === 1 ? 0.2 : (i / (half - 1)) * 0.38)));      // left side
+  for (let i = 0; i < n - half; i++) slots.push(Math.PI * (2.05 - (n - half === 1 ? 0.2 : (i / (n - half - 1)) * 0.38)));  // right side
+  list.forEach((t, i) => {
+    const a = slots[i], r = 4.6 + (i % 2) * 0.5;
+    t.home = new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r + 0.4);
+    t.g.children.find((o) => o.isCSS2DObject).position.y = 2.15 + (i % 3) * 0.45;  // staggered labels don't overlap
+  });
+}
+function removeTarget(sym) { const t = targets.get(sym); if (!t) return; stage.remove(t.g); t.g.traverse((o) => { if (o.isCSS2DObject) o.element.remove(); }); targets.delete(sym); }
+
+// laser + bang
+const laser = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1, 8), new THREE.MeshBasicMaterial({ color: 0xff3b3b, transparent: true, opacity: 0, toneMapped: false }));
+scene.add(laser);
+let laserUntil = 0;
+function shoot(target) {
+  const from = new THREE.Vector3(); eye.getWorldPosition(from);
+  const to = new THREE.Vector3(); target.face.getWorldPosition(to);
+  laser.position.copy(from).lerp(to, 0.5);
+  laser.scale.set(1, from.distanceTo(to), 1);
+  laser.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.clone().sub(from).normalize());
+  laserUntil = performance.now() / 1000 + 0.7;
+  target.shake = 1;
+  const el = document.createElement("div"); el.className = "bang"; el.textContent = "BANG! 🎯";
+  const o = new CSS2DObject(el); o.position.set(0, 2.9, 0); target.g.add(o);
+  requestAnimationFrame(() => { el.style.transform = "translateY(-30px) scale(1.3)"; el.style.opacity = "0"; });
+  setTimeout(() => { target.g.remove(o); el.remove(); }, 1200);
+  hover.userData.recoil = performance.now() / 1000;
+  tone([1200, 300], "sawtooth", 0.08);
+}
+
+// ================================================================ sound
+let soundOn = false, audio = null;
+try { soundOn = localStorage.getItem("sniper-sound") === "1"; } catch (e) { /* storage blocked */ }
+function tone(freqs, type = "sine", dur = 0.14) {
+  if (!soundOn) return; audio = audio || new AudioContext();
+  freqs.forEach((f, i) => { const o = audio.createOscillator(), g = audio.createGain(), at = audio.currentTime + i * dur;
+    o.type = type; o.frequency.value = f; g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.14, at + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur * 1.6); o.connect(g).connect(audio.destination); o.start(at); o.stop(at + dur * 1.8); });
+}
+const renderSound = () => { $("soundBtn").textContent = soundOn ? "🔊 Sound" : "🔇 Sound"; };
+$("soundBtn").onclick = () => { soundOn = !soundOn; renderSound(); try { localStorage.setItem("sniper-sound", soundOn ? "1" : "0"); } catch (e) { /* ignore */ } tone([660, 880]); };
+renderSound();
+
+// ================================================================ data
+let data = null, first = true, lastClosed = 0, openSet = new Set();
+const closing = new Set();
+const running = () => !!data && !!data.heartbeat && Date.now() / 1000 - data.heartbeat < 120;
+async function post(path, body) {
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", "X-Dashboard": "1" }, body: JSON.stringify(body || {}) });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json();
+}
+async function poll() {
+  let d;
+  try { const r = await fetch("/api/sniper", { cache: "no-store" }); if (!r.ok) throw new Error(r.status); d = await r.json(); $("offline").style.display = "none"; }
+  catch (e) { $("offline").style.display = "block"; baseMood = "sleep"; return; }
+  data = d;
+  // targets: coins with lines + coins in a trade
+  const withLines = d.watch.filter((w) => w.plans.length).slice(0, 12);
+  const want = new Map(withLines.map((w) => [w.symbol, w]));
+  for (const p of d.positions) if (!want.has(p.symbol)) want.set(p.symbol, { symbol: p.symbol, plans: [], price: p.mark });
+  for (const sym of [...targets.keys()]) if (!want.has(sym)) removeTarget(sym);
+  let added = false;
+  for (const [sym, w] of want) {
+    if (!targets.has(sym)) { const t = targetBoard(); stage.add(t.g); targets.set(sym, t); added = true; }
+    const t = targets.get(sym), pos = d.positions.find((p) => p.symbol === sym);
+    t.live = !!pos;
+    t.el.className = `tlabel ${pos ? "live" : ""}`;
+    t.el.innerHTML = pos
+      ? `🎯 ${esc(coin(sym))} ${pos.side === "LONG" ? "▲" : "▼"} <span class="${pos.upnl >= 0 ? "up" : "down"}">${money(pos.upnl)}</span><small>${esc(pos.grade)} ${esc(pos.kind)} · target ${px(pos.tp)}</small>`
+      : `${esc(coin(sym))} ${w.bias === "up" ? "▲" : "▼"}<small>${w.plans.map((p) => p.kind === "bounce" ? `dip ${px(p.low)}–${px(p.high)}` : `${p.side === "LONG" ? ">" : "<"} ${px(p.side === "LONG" ? p.high : p.low)}`).join(" · ")}</small>`;
+  }
+  if (added || first) layoutTargets();
+  // new trades -> shoot
+  const nowOpen = new Set(d.positions.map((p) => p.symbol));
+  if (!first) {
+    for (const p of d.positions) if (!openSet.has(p.symbol)) {
+      const t = targets.get(p.symbol);
+      if (t) setTimeout(() => shoot(t), 300);
+      setMood("fire", 1.5);
+      say(`Target hit: ${p.side.toLowerCase()} ${coin(p.symbol)}! ${p.grade} ${p.kind} 🎯`, 4);
+    }
+    if (d.closed_count > lastClosed) {
+      const c = d.closed[0];
+      const win = c && c.pnl > 0;
+      setMood(win ? "happy" : "sad", 3);
+      say(win ? `${coin(c.symbol)} paid ${money(c.pnl)} (${c.outcome}) 💰` : `${coin(c.symbol)}: ${c.outcome}, ${money(c.pnl)}. Next target 🧐`, 4);
+      tone(win ? [784, 988, 1319] : [330, 247], win ? "sine" : "triangle", 0.12);
+    }
+  } else {
+    const n = withLines.length;
+    say(n ? `Watching ${n} coins' lines. Waiting for price to come to me 🎯` : "No clean setups right now. Patience is the job 🧘", 5);
+  }
+  openSet = nowOpen; lastClosed = d.closed_count; first = false;
+  render(d);
+}
+
+function render(d) {
+  const alive = running();
+  const st = $("status");
+  st.className = `pill ${!alive ? "stop" : d.cycle_running ? "aim" : d.trading ? "run" : "pause"}`;
+  st.lastElementChild.textContent = !alive ? (d.heartbeat ? "stopped" : "not started") : d.cycle_running ? "reading charts" : d.trading ? "watching" : "paused";
+  baseMood = !alive ? "sleep" : d.cycle_running ? "scan" : targets.size ? "aim" : "watch";
+  document.querySelectorAll("#tradeSeg button").forEach((b) => { const on = (b.dataset.trading === "1") === !!d.trading; b.classList.toggle("on", on); b.classList.toggle("paused", on && !d.trading); });
+  const r = d.rules;
+  $("rules").textContent = `Trend (4h) + key level + closed trigger candle · lose ${r.risk} USDT at the stop · target ≥ ${r.min_rr}R · half off at +1R · top ${r.coins} coins`;
+  renderSub();
+
+  const total = d.wins + d.losses, rate = total ? d.wins / total : 0;
+  $("net").textContent = money(d.net); $("net").className = `num ${d.net >= 0 ? "up" : "down"}`;
+  $("wins").textContent = d.wins; $("losses").textContent = d.losses;
+  $("upnl").textContent = money(d.unrealized); $("upnl").className = `v num ${d.unrealized >= 0 ? "up" : "down"}`;
+  $("rate").textContent = total ? `${Math.round(rate * 100)}%` : "—";
+  $("donutWin").setAttribute("stroke-dasharray", `${(rate * 201).toFixed(1)} 201`);
+  $("openCount").textContent = d.positions.length;
+  for (const s of [...closing]) if (!d.positions.some((p) => p.symbol === s)) closing.delete(s);
+  if (!$("closeAll").classList.contains("armed")) $("closeAll").disabled = !d.positions.length || !alive;
+
+  $("tradeList").innerHTML = d.positions.length ? d.positions.map((p) => {
+    // bar: stop at 0%, entry at 33%, target at 100%
+    const dir = p.side === "LONG" ? 1 : -1;
+    const pos = p.mark == null ? 33 : ((p.mark - p.sl) * dir) / ((p.tp - p.sl) * dir) * 100;
+    const entryAt = ((p.entry - p.sl) * dir) / ((p.tp - p.sl) * dir) * 100;
+    return `<div class="trow"><div class="top"><b>${esc(coin(p.symbol))}</b><span class="chip ${p.side}">${p.side}</span>
+      <span class="chip grade">${esc(p.grade)}</span><span class="dim" style="font-size:12px">${esc(p.kind)}</span>
+      <span class="pnl num ${p.upnl >= 0 ? "up" : "down"}">${money(p.upnl)}</span>
+      <button class="x-btn" data-close="${esc(p.symbol)}" title="Close ${esc(coin(p.symbol))} now" ${closing.has(p.symbol) || !alive ? "disabled" : ""}>✕</button></div>
+      <div class="bar"><b style="left:${clamp(entryAt, 0, 100).toFixed(1)}%"></b><i style="left:${clamp(pos, 2, 98).toFixed(1)}%"></i></div>
+      <div class="meta">entry ${px(p.entry)} · stop ${px(p.sl)}${p.partial ? " (break-even, half taken)" : ""} · target ${px(p.tp)} (${esc(p.target_label)}, ${Number(p.rr).toFixed(1)}R) · ${p.leverage}x<br>
+      ${esc(p.why)}${p.bonuses && p.bonuses.length ? ` · bonus: ${p.bonuses.map(esc).join(", ")}` : ""}</div></div>`;
+  }).join("") : `<div class="empty">No open trades.<br>Sniper fires only when a candle closes at one of its lines 🎯</div>`;
+
+  const withLines = d.watch.filter((w) => w.plans.length);
+  const skipped = d.watch.filter((w) => !w.plans.length);
+  const counts = {};
+  skipped.forEach((w) => { const k = w.skip.replace(/\s*\(.*\)/, ""); counts[k] = (counts[k] || 0) + 1; });
+  $("lines").innerHTML = (withLines.length ? withLines.map((w) => `
+    <div class="coin"><div class="h">${w.bias === "up" ? "🟢" : "🔴"} ${esc(coin(w.symbol))}${w.status ? ` <span class="chip grade">${esc(w.status)}</span>` : ""}<span class="p">${px(w.price)}</span></div>
+      <div class="ctx">${esc(w.context)}${w.adx ? ` · ADX ${Math.round(w.adx)}` : ""}</div>
+      ${w.plans.map((p) => `<div class="line">${p.kind === "bounce" ? "↩️" : "🚀"} ${esc(p.text)}<small>${esc(p.label)}${p.fib ? " · lines up with Fibonacci 0.5–0.618" : ""}</small></div>`).join("")}
+    </div>`).join("") : `<div class="empty">No coin has a clean setup right now.<br>That's normal: snipers wait 🧘</div>`)
+    + (skipped.length ? `<div class="skipped">Skipped ${skipped.length} coins: ${Object.entries(counts).map(([k, n]) => `${esc(k)} (${n})`).join(" · ")}</div>` : "");
+
+  $("diary").innerHTML = diaryItems(d.log).slice(0, 40).map((m) => `<div class="msg"><div class="ico">${m.ico}</div><div><p>${m.text}</p><time>${ago(m.time)}</time></div></div>`).join("")
+    || `<div class="empty">Nothing yet</div>`;
+}
+function diaryItems(lines) {
+  const out = [];
+  for (const line of lines) {
+    const m = line.match(/^\[(\S+ \S+) UTC\] (.*)$/); if (!m) continue;
+    const time = Date.parse(m[1].replace(" ", "T") + "Z") / 1000, s = m[2]; let x;
+    if ((x = s.match(/^(\S+): FIRED (LONG|SHORT) \((\S+) (\w+)\).*\| (.*)$/))) out.push({ time, ico: "🎯", text: `Fired a <b>${x[2].toLowerCase()}</b> on <b>${esc(coin(x[1]))}</b> · ${esc(x[3])} ${esc(x[4])}` });
+    else if ((x = s.match(/^(\S+): (LONG|SHORT) CLOSED \((.+)\) \| net ([+-]?[\d.]+)/))) { const pnl = parseFloat(x[4]); out.push({ time, ico: pnl > 0 ? "💰" : "💨", text: `<b>${esc(coin(x[1]))}</b> closed (${esc(x[3])}) · <b class="${pnl > 0 ? "up" : "down"}">${money(pnl)}</b>` }); }
+    else if ((x = s.match(/^(\S+): \+1R reached/))) out.push({ time, ico: "🛡️", text: `<b>${esc(coin(x[1]))}</b> hit +1R: half taken, stop at break-even` });
+    else if ((x = s.match(/^(\S+): .*trigger.*skipped/i)) || (x = s.match(/^(\S+): (.*) skipped/))) out.push({ time, ico: "🙅", text: `<b>${esc(coin(x[1]))}</b>: ${esc(s.replace(/^\S+: /, "").slice(0, 110))}` });
+    else if ((x = s.match(/^Cycle done: (\d+) coins read, (\d+) with lines, (\d+) fired/))) out.push({ time, ico: "🔭", text: `Read ${x[1]} charts: ${x[2]} with lines, fired ${x[3]}` });
+    else if (/STARTED/.test(s)) out.push({ time, ico: "☀️", text: "Started watching the charts" });
+  }
+  return out;
+}
+function renderSub() {
+  if (!data) return;
+  const sub = $("substatus");
+  if (!running()) { sub.textContent = data.heartbeat ? "Stopped · double-click sniper.cmd" : "Not started yet · run sniper.cmd"; return; }
+  if (data.cycle_running) { sub.textContent = "Reading every chart and drawing lines…"; return; }
+  const s = Math.max(0, Math.round((data.next_cycle || 0) - Date.now() / 1000));
+  sub.textContent = `${data.trading ? "Next check" : "Paused · next redraw"} in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")} · ${data.watch.filter((w) => w.plans.length).length} coins with lines`;
+}
+setInterval(renderSub, 1000);
+
+// controls
+$("tradeSeg").addEventListener("click", async (e) => {
+  const b = e.target.closest("button[data-trading]"); if (!b || !data) return;
+  const trading = b.dataset.trading === "1"; if (trading === !!data.trading) return;
+  try { await post("/api/sniper/control", { trading }); data.trading = trading; render(data);
+    say(trading ? "Safety off. I'll fire when a line triggers 🎯" : "Holding fire. I'll keep drawing lines 🧘", 3.5); }
+  catch (err) { say(`Couldn't switch: ${err.message} 😵`, 3); }
+});
+async function closeTrades(symbols) {
+  try {
+    if (symbols === "all") await post("/api/sniper/close", { all: true }); else for (const s of symbols) await post("/api/sniper/close", { symbol: s });
+    (symbols === "all" ? data.positions.map((p) => p.symbol) : symbols).forEach((s) => closing.add(s));
+    say(symbols === "all" ? "Closing all trades ✋" : `Closing ${coin(symbols[0])} ✋`, 3); render(data);
+  } catch (err) { say(`Couldn't close: ${err.message} 😵`, 3); }
+}
+document.addEventListener("click", (e) => { const b = e.target.closest("[data-close]"); if (!b || b.disabled) return; e.stopPropagation(); closeTrades([b.dataset.close]); }, true);
+let armTimer = 0;
+$("closeAll").addEventListener("click", () => {
+  const btn = $("closeAll"); if (!data || !data.positions.length || !running()) return;
+  if (!btn.classList.contains("armed")) { btn.classList.add("armed"); btn.textContent = `Tap again: close ${data.positions.length}`;
+    clearTimeout(armTimer); armTimer = setTimeout(() => { btn.classList.remove("armed"); btn.textContent = "✋ Close all"; }, 3000); return; }
+  clearTimeout(armTimer); btn.classList.remove("armed"); btn.textContent = "✋ Close all"; closeTrades("all");
+});
+$("leftTabs").addEventListener("click", (e) => { const b = e.target.closest("button[data-tab]"); if (!b) return;
+  document.querySelectorAll("#leftTabs button").forEach((x) => x.classList.toggle("on", x === b));
+  $("lines").hidden = b.dataset.tab !== "lines"; $("diary").hidden = b.dataset.tab !== "diary"; });
+document.querySelectorAll("[data-sheet]").forEach((b) => b.onclick = () => document.body.classList.toggle("show-watch", b.dataset.sheet === "watch"));
+
+// click the robot
+const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2(); let downAt = null;
+renderer.domElement.addEventListener("pointerdown", (e) => { downAt = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener("pointermove", (e) => { look.tx = (e.clientX / innerWidth) * 2 - 1; look.ty = (e.clientY / innerHeight) * 2 - 1; });
+const POKES = ["Shh… I'm aiming 🤫", "Patience pays 🎯", "No level, no trade!", "Waiting for the candle to close ⏳", "Boop! 🌿"];
+renderer.domElement.addEventListener("pointerup", (e) => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
+  pointer.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); raycaster.setFromCamera(pointer, camera);
+  if (raycaster.intersectObjects([skull, torso, helmet, eye], false).length) { setMood("happy", 1.4); hover.userData.jump = performance.now() / 1000;
+    say(POKES[Math.floor(Math.random() * POKES.length)], 2.5); tone([880, 1175], "sine", 0.07); }
+});
+setInterval(() => {
+  if (!data || !bubbleEl.classList.contains("hide")) return;
+  if (baseMood === "sleep") return say("Zzz… start sniper.cmd 😴", 3);
+  const w = data.watch.filter((x) => x.plans.length);
+  if (!w.length) return say("No clean setups yet. Waiting is part of the job 🧘", 3.5);
+  const pick = w[Math.floor(Math.random() * w.length)], p = pick.plans[0];
+  say(`${coin(pick.symbol)}: ${p.text.replace(/^(LONG|SHORT) if /, (m, s) => (s === "LONG" ? "long if " : "short if "))} 📏`, 5);
+}, 20000);
+
+// ================================================================ animation
+const tmpV = new THREE.Vector3(); let lastEye = 0;
+function animate() {
+  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime, now = performance.now() / 1000;
+  if (now > moodUntil) mood = baseMood;
+  const jumpT = now - (hover.userData.jump || -9), recoilT = now - (hover.userData.recoil || -9);
+  hover.position.y = 0.4 + Math.sin(t * 1.6) * 0.08 + (jumpT < 0.7 ? Math.sin((jumpT / 0.7) * Math.PI) * 0.5 : 0);
+  hover.position.z = recoilT < 0.35 ? -Math.sin((recoilT / 0.35) * Math.PI) * 0.25 : 0;
+  blob.scale.setScalar(1 - (hover.position.y - 0.4) * 0.6);
+  look.x += ((look.tx || 0) - look.x) * 0.08; look.y += ((look.ty || 0) - look.y) * 0.08;
+  // aim at a target now and then, otherwise follow the pointer
+  const live = [...targets.values()].filter((x) => x.live);
+  const focus = live.length ? live[Math.floor(t / 4) % live.length] : targets.size && mood === "aim" ? [...targets.values()][Math.floor(t / 5) % targets.size] : null;
+  let yaw = look.x * 0.35;
+  if (focus && focus.home) yaw = Math.atan2(focus.home.x, focus.home.z) * 0.6;
+  bot.rotation.y += (yaw - bot.rotation.y) * 0.05;
+  head.rotation.x = look.y * 0.1; head.rotation.z = mood === "sad" ? -0.12 : Math.sin(t * 0.8) * 0.03;
+  jet.scale.set(1, 0.8 + Math.sin(t * 30) * 0.15, 1);
+  for (const a of arms) { const z = a.side * (mood === "happy" ? 2.4 + Math.sin(t * 14) * 0.3 : 0.3 + Math.sin(t * 1.6 + a.side) * 0.05); a.pivot.rotation.z += (z - a.pivot.rotation.z) * 0.15; }
+  sightTip.material.color.setHex(Math.sin(t * 6) > 0 ? 0xff3b3b : 0x7a1a1a);
+  if (t - lastEye > 1 / 30) { drawEye(t); lastEye = t; }
+  laser.material.opacity = now < laserUntil ? 0.85 * ((laserUntil - now) / 0.7) : 0;
+
+  for (const tg of targets.values()) {
+    if (!tg.home) continue;
+    tg.g.position.lerp(tg.home, 1 - Math.exp(-dt * 3));
+    tg.g.lookAt(tmpV.set(0, 0, 0));
+    tg.shake = Math.max(0, tg.shake - dt * 1.5);
+    tg.face.rotation.z = Math.sin(t * 40) * 0.25 * tg.shake;
+    tg.mats.forEach((m) => { m.emissiveIntensity = tg.live ? 0.35 + Math.sin(t * 3) * 0.15 : 0.05; });
+  }
+  fireflies.rotation.y += dt * 0.04;
+  const fp = fireflies.geometry.attributes.position;
+  for (let i = 0; i < fp.count; i++) fp.setY(i, fp.getY(i) + Math.sin(t * 1.2 + i) * 0.002);
+  fp.needsUpdate = true;
+  stars.rotation.y += dt * 0.004;
+  controls.update(); renderer.render(scene, camera); labelRenderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+poll(); setInterval(poll, 4000); requestAnimationFrame(animate);
+</script>
+</body>
+</html>

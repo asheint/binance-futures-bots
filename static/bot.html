@@ -1,0 +1,1190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crazy Bot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-top: #1a1442;
+    --bg-bottom: #43307f;
+    --card: rgba(34, 26, 78, 0.62);
+    --card-line: rgba(190, 172, 255, 0.18);
+    --text: #f4f0ff;
+    --muted: #b7acdf;
+    --faint: #7f74ad;
+    --win: #4ef0a0;
+    --loss: #ff6b8b;
+    --gold: #ffd166;
+    --accent: #a48cff;
+    --cyan: #7ef9ff;
+    --radius: 20px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body {
+    background: radial-gradient(120% 90% at 50% 0%, #2c2168 0%, var(--bg-top) 45%, #110d2c 100%);
+    color: var(--text);
+    font-family: "Fredoka", ui-rounded, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  #scene { position: fixed; inset: 0; }
+  #labels { position: fixed; inset: 0; pointer-events: none; }
+  .num { font-variant-numeric: tabular-nums; }
+  .up { color: var(--win); } .down { color: var(--loss); } .dim { color: var(--muted); }
+
+  /* ---- glass cards ---- */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--card-line);
+    border-radius: var(--radius);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    box-shadow: 0 10px 40px rgba(8, 4, 30, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+  .card h3 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+  /* ---- top-left: name + status ---- */
+  .brand { position: fixed; top: 16px; left: 16px; padding: 14px 18px; display: flex; gap: 14px; align-items: center; }
+  .brand .logo { font-size: 30px; line-height: 1; filter: drop-shadow(0 0 12px rgba(126, 249, 255, .5)); }
+  .brand .name { font-size: 22px; font-weight: 700; letter-spacing: .02em; }
+  .brand .sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .brand { align-items: flex-start; }
+  .controls { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+  .seg { display: inline-flex; padding: 3px; border-radius: 99px; background: rgba(255,255,255,.07); }
+  .seg button { font: inherit; font-size: 13px; font-weight: 600; color: var(--muted); background: none; border: 0; padding: 5px 12px;
+                border-radius: 99px; cursor: pointer; }
+  .seg button.on { background: var(--accent); color: #1a1442; }
+  #sideSeg button[data-reverse="1"].on { background: #ffb454; }
+  .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; font-size: 12px; }
+  .modes div { background: rgba(255,255,255,.05); border-radius: 12px; padding: 6px 10px; color: var(--muted); }
+  .modes b { color: var(--text); font-weight: 600; }
+  .rev-chip { font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 6px; background: rgba(255,180,84,.18); color: #ffb454; flex: none; }
+  .scan-btn { font: inherit; font-size: 13px; font-weight: 600; color: #1a1442; background: var(--cyan); border: 0; border-radius: 99px;
+              padding: 7px 14px; cursor: pointer; box-shadow: 0 0 18px rgba(126, 249, 255, .35); }
+  .scan-btn:hover { filter: brightness(1.08); }
+  .scan-btn:disabled { background: rgba(255,255,255,.12); color: var(--muted); box-shadow: none; cursor: default; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 3px 10px;
+          border-radius: 99px; background: rgba(255,255,255,.08); }
+  .pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+  .pill.run i { background: var(--win); box-shadow: 0 0 10px var(--win); animation: pulse 1.6s infinite; }
+  .pill.scan i { background: var(--accent); box-shadow: 0 0 10px var(--accent); animation: pulse .7s infinite; }
+  .pill.stop i { background: var(--loss); }
+  @keyframes pulse { 50% { opacity: .35; } }
+
+  /* ---- right column: stats + open trades ---- */
+  .side { position: fixed; top: 16px; right: 16px; bottom: 16px; width: 330px; display: flex; flex-direction: column; gap: 12px; }
+  .stats { padding: 16px 18px; }
+  .stats .net { display: flex; align-items: flex-end; justify-content: space-between; margin: 8px 0 14px; }
+  .stats .net b { font-size: 36px; font-weight: 700; line-height: 1; }
+  .stats .net small { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .donut { width: 74px; height: 74px; flex: none; }
+  .donut text { fill: var(--text); font: 600 15px "Fredoka", sans-serif; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .tile { background: rgba(255,255,255,.05); border-radius: 14px; padding: 8px 10px; }
+  .tile .k { font-size: 11px; color: var(--muted); }
+  .tile .v { font-size: 18px; font-weight: 600; margin-top: 1px; }
+
+  .trades { padding: 14px 8px 8px 16px; display: flex; flex-direction: column; min-height: 0; flex: 1; }
+  .trades header { display: flex; justify-content: space-between; align-items: center; padding-right: 8px; margin-bottom: 8px; }
+  .list { overflow-y: auto; padding-right: 6px; flex: 1; scrollbar-width: thin; scrollbar-color: rgba(190,172,255,.3) transparent; }
+  .row { display: grid; grid-template-columns: minmax(0, 1fr) 58px 50px 24px; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 12px; cursor: pointer; }
+  .x-btn { width: 24px; height: 24px; border-radius: 50%; border: 0; background: rgba(255,255,255,.08); color: var(--muted);
+           font: 600 12px "Fredoka", sans-serif; cursor: pointer; display: grid; place-items: center; }
+  .x-btn:hover { background: var(--loss); color: #fff; }
+  .x-btn:disabled { opacity: .35; cursor: default; background: rgba(255,255,255,.08); color: var(--muted); }
+  .closeall { font: inherit; font-size: 12px; font-weight: 600; color: var(--loss); background: rgba(255,107,139,.12);
+              border: 1px solid rgba(255,107,139,.35); border-radius: 99px; padding: 3px 10px; cursor: pointer; }
+  .closeall.armed { background: var(--loss); color: #fff; }
+  .closeall:disabled { opacity: .4; cursor: default; }
+  .detail .close-one { width: 100%; margin-top: 10px; font: inherit; font-size: 13px; font-weight: 600; color: #fff; background: var(--loss);
+                       border: 0; border-radius: 12px; padding: 8px; cursor: pointer; }
+  .detail .close-one:disabled { opacity: .5; cursor: default; }
+  .row:hover { background: rgba(255,255,255,.06); }
+  .row .coin { font-weight: 600; font-size: 14px; display: flex; gap: 6px; align-items: center; min-width: 0; }
+  .row .coin span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 3.4em; }
+  .row .coin { gap: 4px; }
+  .side-chip { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 6px; flex: none; }
+  .side-chip.LONG { background: rgba(78,240,160,.16); color: var(--win); }
+  .side-chip.SHORT { background: rgba(255,107,139,.16); color: var(--loss); }
+  .bar { position: relative; height: 8px; border-radius: 99px;
+         background: linear-gradient(90deg, rgba(255,107,139,.45), rgba(255,255,255,.08) 50%, rgba(78,240,160,.45)); }
+  .bar::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: rgba(255,255,255,.35); }
+  .bar i { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%;
+           background: #fff; box-shadow: 0 0 8px rgba(255,255,255,.7); transition: left .8s ease; }
+  .row .pnl { text-align: right; font-weight: 600; font-size: 14px; }
+  .empty { color: var(--muted); font-size: 14px; padding: 18px 8px; text-align: center; }
+
+  /* ---- bottom-left: the bot's diary ---- */
+  .diary { position: fixed; left: 16px; bottom: 16px; width: 360px; max-height: 42vh; padding: 14px 8px 10px 16px; display: flex; flex-direction: column; }
+  .diary .list { margin-top: 8px; }
+  .msg { display: flex; gap: 10px; align-items: flex-start; padding: 6px 8px 6px 0; animation: pop .35s ease; }
+  .msg .ico { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; font-size: 15px; flex: none; background: rgba(255,255,255,.07); }
+  .msg.win .ico { background: rgba(78,240,160,.16); } .msg.loss .ico { background: rgba(255,107,139,.16); }
+  .msg.open .ico { background: rgba(164,140,255,.18); }
+  .msg p { margin: 0; font-size: 14px; line-height: 1.3; }
+  .msg time { font-size: 11px; color: var(--faint); }
+  @keyframes pop { from { opacity: 0; transform: translateY(6px); } }
+
+  .demo { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); font-size: 12px; color: var(--muted); padding: 6px 12px;
+          border-radius: 99px; background: rgba(20, 14, 50, .5); white-space: nowrap; }
+  .tools { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }
+  .btn { font: inherit; font-size: 13px; color: var(--text); background: var(--card); border: 1px solid var(--card-line); border-radius: 99px;
+         padding: 7px 14px; cursor: pointer; backdrop-filter: blur(10px); text-decoration: none; }
+  .btn:hover { background: rgba(80, 64, 160, .7); }
+
+  /* ---- 3D labels ---- */
+  .tag { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; white-space: nowrap; color: #fff;
+         background: rgba(24, 18, 60, .72); border: 1px solid rgba(255,255,255,.14); transition: opacity .3s; }
+  .tag .a { font-size: 9px; margin: 0 2px; }
+  .jar-tag { font-size: 14px; font-weight: 600; padding: 4px 12px; border-radius: 99px; background: rgba(24,18,60,.75); white-space: nowrap; }
+  .bubble { position: relative; max-width: 240px; font-size: 15px; font-weight: 500; line-height: 1.3; padding: 10px 14px; border-radius: 18px;
+            background: #fff; color: #2a1f5c; box-shadow: 0 8px 26px rgba(0,0,0,.35); transition: opacity .35s, transform .35s; text-align: center; }
+  .bubble::after { content: ""; position: absolute; left: 50%; bottom: -8px; margin-left: -8px; border: 8px solid transparent; border-bottom: 0; border-top-color: #fff; }
+  .bubble.hide { opacity: 0; transform: translateY(8px) scale(.95); }
+
+  /* ---- clicked-trade card ---- */
+  .detail { position: fixed; width: 250px; padding: 14px 16px; z-index: 5; display: none; }
+  .detail.show { display: block; animation: pop .25s ease; }
+  .detail .kv { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; }
+  .detail .kv span:first-child { color: var(--muted); }
+  .detail .why { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.4; }
+
+  .offline { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 18px 22px; text-align: center; display: none; }
+
+  /* ---- phones: side panels become one bottom sheet ---- */
+  .sheet-tabs { display: none; }
+  @media (max-width: 860px) {
+    .brand { top: 12px; left: 12px; right: 12px; padding: 10px 14px; }
+    .brand .logo { font-size: 24px; } .brand .name { font-size: 18px; }
+    .tools { top: auto; bottom: calc(40vh + 22px); left: auto; right: 12px; transform: none; }
+    .side { top: auto; left: 12px; right: 12px; bottom: 12px; width: auto; height: 40vh; gap: 8px; }
+    .stats { padding: 10px 12px; }
+    .stats .net { margin: 4px 0 8px; } .stats .net b { font-size: 26px; } .donut { width: 54px; height: 54px; }
+    .tile .v { font-size: 15px; }
+    .diary { left: 12px; right: 12px; bottom: 12px; width: auto; max-height: none; height: calc(40vh - 128px); display: none; }
+    body.show-diary .diary { display: flex; } body.show-diary .trades { display: none; }
+    .sheet-tabs { display: flex; }
+    .demo { display: none; }
+    .bubble { max-width: 180px; font-size: 13px; }
+  }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="scene"></div>
+<div id="labels"></div>
+
+<div class="card brand">
+  <div class="logo">🤖</div>
+  <div>
+    <div class="name">Crazy <span id="status" class="pill"><i></i><span>connecting…</span></span></div>
+    <div class="sub" id="substatus">Waking up…</div>
+    <div class="controls">
+      <div class="seg" id="modeSeg" role="group" aria-label="Scan mode">
+        <button data-auto="1" title="Scan every hour and trade by myself">Auto</button>
+        <button data-auto="0" title="Only scan when you press Scan now">Manual</button>
+      </div>
+      <button class="scan-btn" id="scanBtn">🔭 Scan now</button>
+    </div>
+    <div class="controls" style="margin-top:8px">
+      <div class="seg" id="sideSeg" role="group" aria-label="Trade direction">
+        <button data-reverse="0" title="Trade the direction the confirmations point">Normal</button>
+        <button data-reverse="1" title="Trade the OPPOSITE of every signal">Reverse 🔄</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tools">
+  <button class="btn" id="soundBtn" title="Sounds on/off">🔇 Sound</button>
+  <a class="btn" href="/" title="Back to the trading dashboard">← Dashboard</a>
+</div>
+
+<aside class="side">
+  <section class="card stats">
+    <h3>Results · after fees</h3>
+    <div class="dim" style="font-size:12px;margin-top:4px" id="wallet"></div>
+    <div class="net">
+      <div><small>Net profit</small><b id="net" class="num">—</b></div>
+      <svg class="donut" viewBox="0 0 80 80" aria-label="win rate">
+        <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,107,139,.35)" stroke-width="10"/>
+        <circle id="donutWin" cx="40" cy="40" r="32" fill="none" stroke="#4ef0a0" stroke-width="10" stroke-linecap="round"
+                stroke-dasharray="0 201" transform="rotate(-90 40 40)" style="transition: stroke-dasharray .8s"/>
+        <text x="40" y="45" text-anchor="middle" id="rate">—</text>
+      </svg>
+    </div>
+    <div class="grid">
+      <div class="tile"><div class="k">💰 Wins</div><div class="v num up" id="wins">0</div></div>
+      <div class="tile"><div class="k">💔 Losses</div><div class="v num down" id="losses">0</div></div>
+      <div class="tile"><div class="k">🎈 Open PnL</div><div class="v num" id="upnl">—</div></div>
+    </div>
+    <div class="modes" id="modes"></div>
+    <div class="sheet-tabs" style="gap:8px;margin-top:8px">
+      <button class="btn" data-sheet="trades">📋 Trades</button><button class="btn" data-sheet="diary">📓 Diary</button>
+    </div>
+  </section>
+  <section class="card trades">
+    <header><h3>Trades riding · <span id="openCount" class="num">0</span></h3>
+      <button class="closeall" id="closeAll" title="Close every open trade at market">✋ Close all</button></header>
+    <div class="dim" style="font-size:11px;margin:-2px 0 6px">SL ◂ entry ▸ TP · ✕ closes one trade now</div>
+    <div class="list" id="tradeList"><div class="empty">No open trades yet</div></div>
+  </section>
+</aside>
+
+<section class="card diary">
+  <h3>📓 Crazy's diary</h3>
+  <div class="list" id="diary"><div class="empty">Nothing yet</div></div>
+</section>
+
+<div class="demo">🧸 demo account · fake money · click a bubble or the bot</div>
+<div class="card detail" id="detail"></div>
+<div class="card offline" id="offline">😴 Can't reach the dashboard server.<br><span class="dim">Start it with crazy.cmd, then refresh.</span></div>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const coin = (s) => s.replace(/USDT$/, "").replace(/^1000+/, "");
+const money = (n) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(2)}`;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const rand = (a, b) => a + Math.random() * (b - a);
+const ago = (sec) => {
+  const s = Math.max(0, Date.now() / 1000 - sec);
+  return s < 60 ? "just now" : s < 3600 ? `${Math.floor(s / 60)} min ago` : s < 86400 ? `${Math.floor(s / 3600)} h ago` : `${Math.floor(s / 86400)} d ago`;
+};
+
+// ================================================================ renderer, camera, lights
+const host = $("scene");
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+host.appendChild(renderer.domElement);
+
+const labelRenderer = new CSS2DRenderer({ element: $("labels") });
+const clock = new THREE.Clock();
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x1a1442, 22, 60);
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.enablePan = false;
+controls.minDistance = 7;
+controls.maxDistance = 20;
+controls.minPolarAngle = 0.6;
+controls.maxPolarAngle = 1.5;
+controls.target.set(0, 1.7, 0);
+
+scene.add(new THREE.HemisphereLight(0xc9baff, 0x2a1d55, 1.1));
+const key = new THREE.DirectionalLight(0xffffff, 2.2);
+key.position.set(4, 9, 6);
+key.castShadow = true;
+key.shadow.mapSize.set(1024, 1024);
+key.shadow.camera.left = key.shadow.camera.bottom = -7;
+key.shadow.camera.right = key.shadow.camera.top = 7;
+key.shadow.radius = 6;
+scene.add(key);
+const rimPink = new THREE.PointLight(0xff8fd0, 18, 14); rimPink.position.set(-5, 4, -3); scene.add(rimPink);
+const rimCyan = new THREE.PointLight(0x7ef9ff, 14, 14); rimCyan.position.set(5, 3, -4); scene.add(rimCyan);
+
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h);
+  labelRenderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+function frameCamera() {
+  const narrow = innerWidth < 860;
+  const dist = camera.aspect < 1 ? 17 : narrow ? 14 : 12.5;
+  camera.position.set(0, narrow ? 5.2 : 4.2, dist);
+  controls.target.set(0, narrow ? 1.2 : 1.7, 0);
+  // wide screens: nudge the scene left so it isn't hidden behind the side panel
+  camera.setViewOffset(innerWidth, innerHeight, narrow ? 0 : 150, narrow ? innerHeight * 0.18 : 0, innerWidth, innerHeight);
+}
+addEventListener("resize", () => { resize(); frameCamera(); });
+resize(); frameCamera();
+
+// ================================================================ world: stage, stars, sparkles
+const stage = new THREE.Group();
+scene.add(stage);
+const platform = new THREE.Mesh(new THREE.CylinderGeometry(3.7, 3.9, 0.4, 72),
+  new THREE.MeshStandardMaterial({ color: 0x3a2d82, roughness: 0.55, metalness: 0.1 }));
+platform.position.y = -0.2;
+platform.receiveShadow = true;
+stage.add(platform);
+const topDisk = new THREE.Mesh(new THREE.CircleGeometry(3.7, 72), new THREE.MeshStandardMaterial({ color: 0x4b3ba3, roughness: 0.4 }));
+topDisk.rotation.x = -Math.PI / 2; topDisk.position.y = 0.001; topDisk.receiveShadow = true;
+stage.add(topDisk);
+const rimRing = new THREE.Mesh(new THREE.TorusGeometry(3.72, 0.05, 12, 120), new THREE.MeshBasicMaterial({ color: 0xb49dff }));
+rimRing.rotation.x = Math.PI / 2; rimRing.position.y = 0.01;
+stage.add(rimRing);
+for (let r = 1.4; r < 3.5; r += 1) {  // soft rings on the floor
+  const ring = new THREE.Mesh(new THREE.RingGeometry(r, r + 0.02, 96), new THREE.MeshBasicMaterial({ color: 0x8c78e6, transparent: true, opacity: 0.25 }));
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.005;
+  stage.add(ring);
+}
+
+function pointsCloud(count, place, size, color, opacity) {
+  const pos = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) place(pos, i * 3);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  const mat = new THREE.PointsMaterial({ size, color, transparent: true, opacity, depthWrite: false, sizeAttenuation: true });
+  return new THREE.Points(geo, mat);
+}
+const stars = pointsCloud(700, (p, i) => {
+  const r = rand(35, 60), th = rand(0, Math.PI * 2), ph = rand(0.05, 1.35);
+  p[i] = r * Math.sin(ph) * Math.cos(th); p[i + 1] = r * Math.cos(ph) - 4; p[i + 2] = r * Math.sin(ph) * Math.sin(th);
+}, 0.22, 0xffffff, 0.85);
+scene.add(stars);
+const sparkles = pointsCloud(140, (p, i) => {
+  const r = rand(1.5, 6.5), th = rand(0, Math.PI * 2);
+  p[i] = r * Math.cos(th); p[i + 1] = rand(0, 5); p[i + 2] = r * Math.sin(th);
+}, 0.06, 0xd6c8ff, 0.8);
+scene.add(sparkles);
+
+// ================================================================ the robot
+const white = new THREE.MeshPhysicalMaterial({ color: 0xf6f3ff, roughness: 0.32, clearcoat: 0.7, clearcoatRoughness: 0.2 });
+const lilac = new THREE.MeshPhysicalMaterial({ color: 0xa48cff, roughness: 0.35, clearcoat: 0.5 });
+const pink = new THREE.MeshPhysicalMaterial({ color: 0xff9ecf, roughness: 0.35, clearcoat: 0.5 });
+const dark = new THREE.MeshPhysicalMaterial({ color: 0x151130, roughness: 0.15, clearcoat: 1 });
+
+const robot = new THREE.Group();
+stage.add(robot);
+const hover = new THREE.Group();
+robot.add(hover);
+const shadowTex = (() => {
+  const c = document.createElement("canvas"); c.width = c.height = 128;
+  const g = c.getContext("2d"), gr = g.createRadialGradient(64, 64, 4, 64, 64, 64);
+  gr.addColorStop(0, "rgba(10,5,30,.55)"); gr.addColorStop(1, "rgba(10,5,30,0)");
+  g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+})();
+const blob = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
+blob.rotation.x = -Math.PI / 2; blob.position.y = 0.01;
+robot.add(blob);
+
+const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.66, 0.4, 10, 32), white);
+body.scale.set(1, 0.88, 0.92); body.position.y = 0.95; body.castShadow = true;
+hover.add(body);
+const belly = new THREE.Mesh(new THREE.CircleGeometry(0.2, 40), new THREE.MeshBasicMaterial({ color: 0xa48cff, toneMapped: false }));
+belly.position.set(0, 1.0, 0.61);
+hover.add(belly);
+const bellyRing = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.04, 12, 40), lilac);
+bellyRing.position.copy(belly.position);
+hover.add(bellyRing);
+
+const jet = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.6, 24, 1, true),
+  new THREE.MeshBasicMaterial({ color: 0x7ef9ff, transparent: true, opacity: 0.55, toneMapped: false, side: THREE.DoubleSide }));
+jet.rotation.x = Math.PI; jet.position.y = -0.05;
+hover.add(jet);
+const jetLight = new THREE.PointLight(0x7ef9ff, 6, 3); jetLight.position.y = 0.1; hover.add(jetLight);
+
+const head = new THREE.Group();
+head.position.y = 2.2;
+hover.add(head);
+const skull = new THREE.Mesh(new RoundedBoxGeometry(1.9, 1.34, 1.3, 6, 0.42), white);
+skull.castShadow = true; head.add(skull);
+const screen = new THREE.Mesh(new RoundedBoxGeometry(1.52, 0.98, 0.1, 4, 0.14), dark);
+screen.position.z = 0.62; head.add(screen);
+
+const faceCanvas = document.createElement("canvas");
+faceCanvas.width = 512; faceCanvas.height = 330;
+const face = faceCanvas.getContext("2d");
+const faceTex = new THREE.CanvasTexture(faceCanvas);
+faceTex.colorSpace = THREE.SRGBColorSpace;
+const facePlane = new THREE.Mesh(new THREE.PlaneGeometry(1.42, 0.915), new THREE.MeshBasicMaterial({ map: faceTex, transparent: true, toneMapped: false }));
+facePlane.position.z = 0.68; head.add(facePlane);
+
+for (const side of [-1, 1]) {
+  const ear = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.2, 32), pink);
+  ear.rotation.z = Math.PI / 2; ear.position.x = side * 1.0; head.add(ear);
+  const earCap = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.22, 24), lilac);
+  earCap.rotation.z = Math.PI / 2; earCap.position.x = side * 1.04; head.add(earCap);
+}
+const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.42, 12), lilac);
+antenna.position.y = 0.86; head.add(antenna);
+const bulbMat = new THREE.MeshBasicMaterial({ color: 0x7ef9ff, toneMapped: false });
+const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.12, 24, 16), bulbMat);
+bulb.position.y = 1.12; head.add(bulb);
+const bulbLight = new THREE.PointLight(0x7ef9ff, 4, 2.5); bulbLight.position.y = 1.15; head.add(bulbLight);
+
+const arms = [-1, 1].map((side) => {
+  const pivot = new THREE.Group();
+  pivot.position.set(side * 0.74, 1.38, 0);
+  const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.13, 0.42, 8, 16), white);
+  arm.position.y = -0.34; arm.castShadow = true; pivot.add(arm);
+  const hand = new THREE.Mesh(new THREE.SphereGeometry(0.19, 24, 16), lilac);
+  hand.position.y = -0.7; hand.castShadow = true; pivot.add(hand);
+  pivot.rotation.z = side * 0.28;
+  hover.add(pivot);
+  return { pivot, side };
+});
+
+// speech bubble above the head
+const bubbleEl = document.createElement("div");
+bubbleEl.className = "bubble hide";
+const bubble = new CSS2DObject(bubbleEl);
+bubble.position.set(0, 1.75, 0);
+head.add(bubble);
+let bubbleTimer = 0;
+function say(text, seconds = 4) {
+  bubbleEl.textContent = text;
+  bubbleEl.classList.remove("hide");
+  clearTimeout(bubbleTimer);
+  bubbleTimer = setTimeout(() => bubbleEl.classList.add("hide"), seconds * 1000);
+}
+
+// rain cloud (for losses)
+const cloud = new THREE.Group();
+const cloudMat = new THREE.MeshStandardMaterial({ color: 0xaab4e8, roughness: 0.9, transparent: true, opacity: 0.95 });
+[[0, 0, 0.42], [-0.42, -0.08, 0.32], [0.44, -0.06, 0.34], [0.18, 0.16, 0.3]].forEach(([x, y, r]) => {
+  const puff = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 14), cloudMat); puff.position.set(x, y, 0); cloud.add(puff);
+});
+cloud.position.y = 1.95; cloud.scale.setScalar(0.001);
+head.add(cloud);
+const DROPS = 26;
+const drops = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.018, 0.018, 0.16, 6),
+  new THREE.MeshBasicMaterial({ color: 0x9fd0ff, transparent: true, opacity: 0.8 }), DROPS);
+const dropSeeds = Array.from({ length: DROPS }, () => ({ x: rand(-0.55, 0.55), z: rand(-0.3, 0.3), o: Math.random() }));
+head.add(drops);
+
+// ================================================================ the face (drawn on a canvas)
+const MOODS = {
+  idle: "#7ef9ff", happy: "#5dffa8", money: "#ffd166", sad: "#8fb7ff",
+  scan: "#c2aeff", focus: "#ffd166", sleep: "#6f69a6", love: "#ff9ecf",
+};
+let mood = "idle", moodUntil = 0, baseMood = "idle";
+function setMood(name, seconds) { mood = name; moodUntil = performance.now() / 1000 + seconds; }
+const look = { x: 0, y: 0 };
+
+function drawFace(t) {
+  const g = face, W = 512, H = 330, c = MOODS[mood] || MOODS.idle;
+  g.clearRect(0, 0, W, H);
+  g.save();
+  g.shadowColor = c; g.shadowBlur = 28;
+  g.fillStyle = c; g.strokeStyle = c; g.lineCap = "round"; g.lineJoin = "round";
+  const lx = look.x * 26, ly = look.y * 16;
+  const eyes = [[176 + lx, 140 + ly], [336 + lx, 140 + ly]];
+  const blink = (t % 3.8) < 0.13 ? 0.1 : 1;
+  const round = (x, y, w, h, r) => { g.beginPath(); g.roundRect(x - w / 2, y - h / 2, w, h, r); g.fill(); };
+
+  if (mood === "happy" || mood === "love") {
+    g.lineWidth = 20;
+    for (const [x, y] of eyes) { g.beginPath(); g.arc(x, y + 22, 40, Math.PI * 1.15, Math.PI * 1.85); g.stroke(); }
+  } else if (mood === "money") {
+    g.font = "700 130px Fredoka, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+    const bounce = Math.sin(t * 10) * 6;
+    for (const [x, y] of eyes) g.fillText("$", x, y + bounce);
+  } else if (mood === "sad") {
+    for (const [x, y] of eyes) round(x, y + 18, 62, 58, 26);
+    g.lineWidth = 12;
+    g.beginPath(); g.moveTo(eyes[0][0] - 40, eyes[0][1] - 30); g.lineTo(eyes[0][0] + 30, eyes[0][1] - 50); g.stroke();
+    g.beginPath(); g.moveTo(eyes[1][0] + 40, eyes[1][1] - 30); g.lineTo(eyes[1][0] - 30, eyes[1][1] - 50); g.stroke();
+    const ty = eyes[0][1] + 60 + ((t * 90) % 90);  // a tear
+    g.globalAlpha = 1 - ((t * 90) % 90) / 90;
+    g.beginPath(); g.ellipse(eyes[0][0] - 22, ty, 9, 13, 0, 0, Math.PI * 2); g.fill();
+    g.globalAlpha = 1;
+  } else if (mood === "scan") {
+    const sx = Math.sin(t * 3.2) * 40;
+    for (const [x, y] of eyes) round(x + sx, y, 76, 30, 15);
+    g.globalAlpha = 0.25;
+    const sy = (t * 160) % H;
+    g.fillRect(20, sy, W - 40, 6);
+    g.globalAlpha = 1;
+  } else if (mood === "focus") {
+    for (const [x, y] of eyes) round(x, y + 8, 74, 50, 22);
+    g.lineWidth = 12;
+    g.beginPath(); g.moveTo(eyes[0][0] - 40, eyes[0][1] - 44); g.lineTo(eyes[0][0] + 36, eyes[0][1] - 28); g.stroke();
+    g.beginPath(); g.moveTo(eyes[1][0] + 40, eyes[1][1] - 44); g.lineTo(eyes[1][0] - 36, eyes[1][1] - 28); g.stroke();
+  } else if (mood === "sleep") {
+    g.lineWidth = 12;
+    for (const [x, y] of eyes) { g.beginPath(); g.moveTo(x - 34, y + 10); g.lineTo(x + 34, y + 10); g.stroke(); }
+    g.font = "600 44px Fredoka, sans-serif";
+    for (let i = 0; i < 3; i++) {
+      const p = ((t * 0.35 + i / 3) % 1);
+      g.globalAlpha = 1 - p;
+      g.fillText("z", 400 + p * 60, 110 - p * 90);
+    }
+    g.globalAlpha = 1;
+  } else {
+    for (const [x, y] of eyes) round(x, y, 70, 96 * blink, 30);
+    g.save(); g.shadowBlur = 0; g.fillStyle = "rgba(255,255,255,.85)";
+    for (const [x, y] of eyes) if (blink > 0.5) { g.beginPath(); g.arc(x + 14, y - 22, 9, 0, Math.PI * 2); g.fill(); }
+    g.restore();
+  }
+
+  // mouth
+  g.lineWidth = 12;
+  const mx = 256 + lx * 0.6, my = 250 + ly * 0.5;
+  if (mood === "happy" || mood === "money" || mood === "love") {
+    g.beginPath(); g.moveTo(mx - 50, my - 12); g.quadraticCurveTo(mx, my + 62, mx + 50, my - 12); g.closePath(); g.fill();
+  } else if (mood === "sad") {
+    g.beginPath(); g.arc(mx, my + 34, 34, Math.PI * 1.2, Math.PI * 1.8); g.stroke();
+  } else if (mood === "sleep") {
+    g.beginPath(); g.ellipse(mx, my + 6, 12, 14, 0, 0, Math.PI * 2); g.stroke();
+  } else if (mood === "scan" || mood === "focus") {
+    g.beginPath(); g.moveTo(mx - 24, my + 6); g.lineTo(mx + 24, my + 6); g.stroke();
+  } else {
+    g.beginPath(); g.arc(mx, my - 14, 30, Math.PI * 0.2, Math.PI * 0.8); g.stroke();
+  }
+  g.restore();
+
+  // blush
+  if (mood !== "sad" && mood !== "sleep" && mood !== "scan") {
+    g.fillStyle = "rgba(255,120,190,.33)";
+    g.beginPath(); g.ellipse(96, 232, 36, 18, 0, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.ellipse(416, 232, 36, 18, 0, 0, Math.PI * 2); g.fill();
+  }
+  faceTex.needsUpdate = true;
+}
+
+// ================================================================ coin jars (wins right, losses left)
+const glass = new THREE.MeshPhysicalMaterial({ color: 0xffffff, transmission: 1, thickness: 0.15, roughness: 0.05, ior: 1.3,
+                                                transparent: true, opacity: 0.35, side: THREE.DoubleSide });
+const coinGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.05, 28);
+const JAR_MAX = 64;
+function makeJar(x, color, label) {
+  const group = new THREE.Group();
+  group.position.set(x, 0, 1.25);
+  const jar = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.46, 1.05, 40, 1, true), glass);
+  jar.position.y = 0.53; group.add(jar);
+  const bottom = new THREE.Mesh(new THREE.CircleGeometry(0.46, 40), glass);
+  bottom.rotation.x = -Math.PI / 2; bottom.position.y = 0.01; group.add(bottom);
+  const lip = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.045, 12, 48), new THREE.MeshPhysicalMaterial({ color, roughness: 0.3, metalness: 0.4 }));
+  lip.rotation.x = Math.PI / 2; lip.position.y = 1.06; group.add(lip);
+  const mat = new THREE.MeshPhysicalMaterial({ color, metalness: 0.75, roughness: 0.25, clearcoat: 1, emissive: color, emissiveIntensity: 0.12 });
+  const coins = new THREE.InstancedMesh(coinGeo, mat, JAR_MAX);
+  coins.castShadow = true;
+  group.add(coins);
+  const tagEl = document.createElement("div"); tagEl.className = "jar-tag";
+  const tag = new CSS2DObject(tagEl); tag.position.set(0, -0.28, 0); group.add(tag);
+  stage.add(group);
+  const jarObj = { group, coins, mat, tagEl, label, shown: 0, falling: [] };
+  setJarCount(jarObj, 0);
+  return jarObj;
+}
+const tmp = new THREE.Object3D();
+function slotMatrix(i) {
+  const layer = Math.floor(i / 4), k = i % 4, a = k * Math.PI / 2 + layer * 0.7;
+  tmp.position.set(Math.cos(a) * 0.2, 0.05 + layer * 0.056, Math.sin(a) * 0.2);
+  tmp.rotation.set(Math.sin(i * 12.9) * 0.18, 0, Math.cos(i * 7.3) * 0.18);
+  tmp.scale.setScalar(1);
+  tmp.updateMatrix();
+  return tmp.matrix.clone();
+}
+function setJarCount(jar, n) {
+  jar.shown = n;
+  for (let i = 0; i < JAR_MAX; i++) {
+    if (i < Math.min(n, JAR_MAX)) jar.coins.setMatrixAt(i, slotMatrix(i));
+    else { tmp.scale.setScalar(0); tmp.updateMatrix(); jar.coins.setMatrixAt(i, tmp.matrix); }
+  }
+  jar.coins.instanceMatrix.needsUpdate = true;
+  jar.tagEl.textContent = `${jar.label} ${n}`;
+}
+function dropCoin(jar, from) {
+  const m = new THREE.Mesh(coinGeo, jar.mat);
+  m.castShadow = true;
+  const start = from ? jar.group.worldToLocal(from.clone()) : new THREE.Vector3(0, 2.6, 0);
+  m.position.copy(start);
+  jar.group.add(m);
+  const target = new THREE.Vector3().setFromMatrixPosition(slotMatrix(Math.min(jar.shown + jar.falling.length, JAR_MAX - 1)));
+  jar.falling.push({ m, start, target, t: 0, spin: rand(6, 12) });
+}
+const winJar = makeJar(2.35, 0xffd166, "💰");
+const lossJar = makeJar(-2.35, 0xff6b8b, "💔");
+
+// ================================================================ confetti + scan ring
+const CONF = 180;
+const confetti = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.07, 0.11),
+  new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, toneMapped: false }), CONF);
+const confParts = Array.from({ length: CONF }, () => ({ p: new THREE.Vector3(), v: new THREE.Vector3(), r: new THREE.Vector3(), life: 0 }));
+const palette = [0xffd166, 0x4ef0a0, 0xff9ecf, 0x7ef9ff, 0xa48cff, 0xffffff].map((c) => new THREE.Color(c));
+confParts.forEach((_, i) => confetti.setColorAt(i, palette[i % palette.length]));
+scene.add(confetti);
+function burst(at, n = 90) {
+  let made = 0;
+  for (const c of confParts) {
+    if (c.life > 0 || made >= n) continue;
+    c.p.copy(at);
+    c.v.set(rand(-2.2, 2.2), rand(3, 6.5), rand(-2.2, 2.2));
+    c.r.set(rand(0, 6), rand(0, 6), rand(0, 6));
+    c.life = rand(1.8, 2.8);
+    made++;
+  }
+}
+const scanRing = new THREE.Mesh(new THREE.RingGeometry(0.94, 1, 96), new THREE.MeshBasicMaterial({ color: 0xc2aeff, transparent: true, side: THREE.DoubleSide, toneMapped: false }));
+scanRing.rotation.x = -Math.PI / 2; scanRing.position.y = 0.02; scanRing.visible = false;
+stage.add(scanRing);
+
+// ================================================================ trade bubbles orbiting the bot
+const RINGS = [{ r: 3.0, y: 2.0, cap: 14, speed: 0.12 }, { r: 4.15, y: 1.25, cap: 22, speed: -0.08 }, { r: 5.3, y: 2.4, cap: 30, speed: 0.05 }];
+const orbGeo = new THREE.SphereGeometry(0.24, 32, 20);
+const haloGeo = new THREE.TorusGeometry(0.36, 0.022, 8, 48);
+const orbs = new Map();   // symbol -> orb (open trades)
+const ghosts = [];        // orbs whose trade just closed, waiting for their win/loss animation
+const slots = new Map();  // symbol -> slot index
+const neutral = new THREE.Color(0xb9a8ff), green = new THREE.Color(0x4ef0a0), red = new THREE.Color(0xff6b8b), grey = new THREE.Color(0x6d6a8a);
+
+function progressOf(p) {
+  if (p.mark == null) return 0;
+  const dir = p.side === "LONG" ? 1 : -1, move = (p.mark - p.entry) * dir;
+  return move >= 0 ? clamp(move / Math.abs(p.tp - p.entry || 1), 0, 1) : -clamp(-move / Math.abs(p.entry - p.sl || 1), 0, 1);
+}
+function freeSlot() {
+  const used = new Set(slots.values());
+  let i = 0; while (used.has(i)) i++;
+  return i;
+}
+function slotPosition(i, t, out) {
+  let idx = i, ring = RINGS[RINGS.length - 1];
+  for (const r of RINGS) { if (idx < r.cap) { ring = r; break; } idx -= r.cap; }
+  const a = (idx / ring.cap) * Math.PI * 2 + t * ring.speed + (ring === RINGS[1] ? 0.13 : 0);
+  return out.set(Math.cos(a) * ring.r, ring.y + Math.sin(t * 1.3 + i) * 0.12, Math.sin(a) * ring.r);
+}
+function makeOrb(p, fromBot) {
+  const mat = new THREE.MeshPhysicalMaterial({ color: neutral.clone(), roughness: 0.12, clearcoat: 1, emissive: neutral.clone(), emissiveIntensity: 0.35, transparent: true });
+  const group = new THREE.Group();
+  const ball = new THREE.Mesh(orbGeo, mat);
+  ball.castShadow = true;
+  ball.userData.symbol = p.symbol;
+  group.add(ball);
+  const halo = new THREE.Mesh(haloGeo, new THREE.MeshBasicMaterial({ color: p.side === "LONG" ? 0x4ef0a0 : 0xff6b8b, transparent: true, opacity: 0.7 }));
+  halo.rotation.x = Math.PI / 2.4;
+  group.add(halo);
+  const el = document.createElement("div"); el.className = "tag";
+  const tag = new CSS2DObject(el); tag.position.set(0, 0.5, 0); group.add(tag);
+  slots.set(p.symbol, freeSlot());
+  if (fromBot) group.position.set(0, 1.35, 0.6); // pops out of the belly
+  else slotPosition(slots.get(p.symbol), clock.elapsedTime, group.position); // already open when the page loaded
+  group.scale.setScalar(fromBot ? 0.01 : 1);
+  stage.add(group);
+  return { group, ball, mat, halo, el, data: p, state: "live", t: 0, vel: new THREE.Vector3() };
+}
+function updateOrbData(orb, p) {
+  orb.data = p;
+  const prog = progressOf(p);
+  const target = neutral.clone().lerp(prog >= 0 ? green : red, Math.min(1, Math.abs(prog) * 1.4));
+  orb.mat.color.lerp(target, 0.5); orb.mat.emissive.copy(orb.mat.color);
+  orb.el.innerHTML = `${esc(coin(p.symbol))}<span class="a ${p.side === "LONG" ? "up" : "down"}">${p.side === "LONG" ? "▲" : "▼"}</span>` +
+    `<span class="${p.upnl >= 0 ? "up" : "down"}">${money(p.upnl)}</span>`;
+}
+function removeOrb(orb) {
+  stage.remove(orb.group);
+  orb.group.traverse((o) => { if (o.isCSS2DObject) o.element.remove(); });
+  const gi = ghosts.indexOf(orb); if (gi >= 0) ghosts.splice(gi, 1);
+}
+
+// ================================================================ events: new trades, wins, losses
+const queue = [];
+let busyUntil = 0;
+let soundOn = false;
+try { soundOn = localStorage.getItem("crazy-sound") === "1"; } catch (e) { /* storage blocked */ }
+let audio = null;
+function tone(freqs, type = "sine", dur = 0.14) {
+  if (!soundOn) return;
+  audio = audio || new AudioContext();
+  freqs.forEach((f, i) => {
+    const o = audio.createOscillator(), g = audio.createGain(), at = audio.currentTime + i * dur;
+    o.type = type; o.frequency.value = f;
+    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.18, at + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, at + dur * 1.6);
+    o.connect(g).connect(audio.destination); o.start(at); o.stop(at + dur * 1.8);
+  });
+}
+function renderSoundBtn() { $("soundBtn").textContent = soundOn ? "🔊 Sound" : "🔇 Sound"; }
+$("soundBtn").onclick = () => {
+  soundOn = !soundOn; renderSoundBtn();
+  try { localStorage.setItem("crazy-sound", soundOn ? "1" : "0"); } catch (e) { /* ignore */ }
+  tone([660, 880]);
+};
+renderSoundBtn();
+
+const bellyWorld = () => belly.getWorldPosition(new THREE.Vector3());
+const WIN_LINES = ["Cha-ching! {pnl} on {coin} 💰", "Yesss! {coin} paid {pnl} 🎉", "Another one! {pnl} from {coin} ✨", "{coin} said thank you: {pnl} 🤑"];
+const LOSS_LINES = ["Oof, {coin} hit the stop ({pnl}) 😿", "{coin} got me: {pnl}. Next one! 💪", "Ouch, {pnl} on {coin} 🌧️", "{coin} didn't listen ({pnl}) 🥲"];
+const OPEN_LINES = ["New {side} on {coin}! 🎯", "Going {side} on {coin} 🚀", "{coin} {side}, {conf}/9 checks ✔", "Jumping into {coin} ({side}) 🫧"];
+const pick = (arr, v) => arr[Math.floor(Math.random() * arr.length)].replace(/\{(\w+)\}/g, (_, k) => v[k]);
+
+function runEvent(ev) {
+  const now = performance.now() / 1000;
+  if (ev.kind === "open") {
+    setMood("focus", 1.4);
+    arms[1].kick = now;
+    say(pick(OPEN_LINES, { coin: coin(ev.p.symbol), side: ev.p.side.toLowerCase(), conf: ev.p.reasons.length }), 3);
+    tone([520, 780], "triangle", 0.08);
+    return 0.9;
+  }
+  const win = ev.c.pnl > 0;
+  const orb = ghosts.find((o) => o.data.symbol === ev.c.symbol && o.state === "ghost") || orbs.get(ev.c.symbol);
+  if (orb) {
+    if (orbs.get(ev.c.symbol) === orb) { orbs.delete(ev.c.symbol); slots.delete(ev.c.symbol); ghosts.push(orb); }
+    orb.state = win ? "win" : "loss"; orb.t = 0;
+    orb.start = orb.group.position.clone();
+    orb.el.innerHTML = `${esc(coin(ev.c.symbol))} <span class="${win ? "up" : "down"}">${money(ev.c.pnl)}</span>`;
+    if (!win) { orb.vel.set(rand(-0.6, 0.6), 1.5, rand(-0.3, 0.6)); orb.mat.color.copy(grey); orb.mat.emissive.copy(grey); }
+  } else {
+    dropCoin(win ? winJar : lossJar);
+  }
+  const vars = { coin: coin(ev.c.symbol), pnl: money(ev.c.pnl) };
+  if (win) {
+    setMood(Math.random() < 0.5 ? "money" : "happy", 2.6);
+    arms[0].wave = arms[1].wave = now;
+    hover.userData.jump = now;
+    burst(new THREE.Vector3(0, 3.3, 0), 70);
+    say(pick(WIN_LINES, vars), 3.5);
+    tone([784, 988, 1319], "sine", 0.1);
+  } else {
+    setMood("sad", 3.2);
+    hover.userData.rain = now;
+    say(pick(LOSS_LINES, vars), 3.5);
+    tone([330, 247], "triangle", 0.18);
+  }
+  return 1.4;
+}
+
+// ================================================================ data from the bot
+let first = true;
+const seenClosed = new Set();
+let data = null;
+
+async function poll() {
+  let d;
+  try {
+    const r = await fetch("/api/crazy", { cache: "no-store" });
+    if (!r.ok) throw new Error(r.status);
+    d = await r.json();
+    $("offline").style.display = "none";
+  } catch (e) {
+    $("offline").style.display = "block";
+    baseMood = "sleep";
+    return;
+  }
+  data = d;
+  const live = new Set(d.positions.map((p) => p.symbol));
+
+  // trades that disappeared: keep their bubble until the win/loss animation plays
+  for (const [sym, orb] of orbs) {
+    if (!live.has(sym)) { orbs.delete(sym); slots.delete(sym); orb.state = "ghost"; orb.t = 0; ghosts.push(orb); }
+  }
+  for (const p of d.positions) {
+    let orb = orbs.get(p.symbol);
+    if (!orb) {
+      orb = makeOrb(p, !first);
+      orbs.set(p.symbol, orb);
+      if (!first) queue.push({ kind: "open", p });
+    }
+    updateOrbData(orb, p);
+  }
+  const fresh = d.closed.filter((c) => !seenClosed.has(`${c.time}|${c.symbol}|${c.pnl}`)).reverse();
+  fresh.forEach((c) => seenClosed.add(`${c.time}|${c.symbol}|${c.pnl}`));
+  if (first) {
+    setJarCount(winJar, d.wins); setJarCount(lossJar, d.losses);
+    say(d.positions.length ? `Hi! I'm riding ${d.positions.length} trades right now 🫧` : "Hi! I'm Crazy. Let's find some trades 🤖", 5);
+  } else {
+    fresh.forEach((c) => queue.push({ kind: "close", c }));
+  }
+  first = false;
+  renderPanels(d);
+}
+
+// ================================================================ HTML panels
+function renderPanels(d) {
+  const age = d.heartbeat ? Date.now() / 1000 - d.heartbeat : null;
+  const running = age != null && age < 180;
+  const st = $("status");
+  st.className = `pill ${!running ? "stop" : d.scanning ? "scan" : "run"}`;
+  st.lastElementChild.textContent = !running ? (d.heartbeat ? "sleeping" : "not started") : d.scanning ? "scanning" : "running";
+  baseMood = !running ? "sleep" : d.scanning ? "scan" : "idle";
+  renderCountdown();
+
+  const total = d.wins + d.losses, rate = total ? d.wins / total : 0;
+  $("net").textContent = money(d.net); $("net").className = `num ${d.net >= 0 ? "up" : "down"}`;
+  $("wins").textContent = d.wins; $("losses").textContent = d.losses;
+  $("upnl").textContent = money(d.unrealized); $("upnl").className = `v num ${d.unrealized >= 0 ? "up" : "down"}`;
+  $("rate").textContent = total ? `${Math.round(rate * 100)}%` : "—";
+  $("donutWin").setAttribute("stroke-dasharray", `${(rate * 201).toFixed(1)} 201`);
+  $("openCount").textContent = d.positions.length;
+  for (const s of [...closing]) if (!d.positions.some((p) => p.symbol === s)) closing.delete(s);
+  if (!$("closeAll").classList.contains("armed")) $("closeAll").disabled = !d.positions.length || !botRunning();
+  const m = d.by_mode || { normal: { wins: 0, losses: 0, net: 0 }, reverse: { wins: 0, losses: 0, net: 0 } };
+  const line = (label, s) => `${label}<br><b>${s.wins}W · ${s.losses}L</b> · <b class="${s.net >= 0 ? "up" : "down"}">${money(s.net)}</b>`;
+  $("modes").innerHTML = `<div>${line("✅ Normal", m.normal)}</div><div>${line("🔄 Reverse", m.reverse)}</div>`;
+  $("wallet").textContent = `Wallet ${d.balance.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDT · ${d.own_account ? "Crazy's own demo account" : "shared with the trend bot"}`;
+
+  const rows = [...d.positions].sort((a, b) => progressOf(b) - progressOf(a));
+  $("tradeList").innerHTML = rows.length ? rows.map((p) => `
+    <div class="row" data-symbol="${esc(p.symbol)}">
+      <div class="coin"><span>${esc(coin(p.symbol))}</span><span class="side-chip ${p.side}">${p.side}</span>${p.mode === "reverse" ? '<span class="rev-chip" title="Opened in reverse mode">🔄</span>' : ""}</div>
+      <div class="bar"><i style="left:${(50 + progressOf(p) * 50).toFixed(1)}%"></i></div>
+      <div class="pnl num ${p.upnl >= 0 ? "up" : "down"}">${money(p.upnl)}</div>
+      <button class="x-btn" data-close="${esc(p.symbol)}" title="Close ${esc(coin(p.symbol))} now" ${closing.has(p.symbol) || !botRunning() ? "disabled" : ""}>✕</button>
+    </div>`).join("") : `<div class="empty">No open trades. Waiting for the next scan 👀</div>`;
+
+  $("diary").innerHTML = diaryItems(d.log).slice(0, 40).map((m) => `
+    <div class="msg ${m.cls}"><div class="ico">${m.ico}</div><div><p>${m.text}</p><time>${ago(m.time)}</time></div></div>`).join("")
+    || `<div class="empty">Nothing yet</div>`;
+}
+
+function diaryItems(lines) {
+  const out = [];
+  for (const line of lines) {
+    const m = line.match(/^\[(\S+ \S+) UTC\] (.*)$/);
+    if (!m) continue;
+    const time = Date.parse(m[1].replace(" ", "T") + "Z") / 1000, s = m[2];
+    let x;
+    if ((x = s.match(/^(\S+): OPENED (LONG|SHORT)( \(REVERSE)?.*\| (\d)\/9/))) {
+      out.push({ time, cls: "open", ico: x[3] ? "🔄" : x[2] === "LONG" ? "🚀" : "🪂",
+                 text: `Opened a <b>${x[2].toLowerCase()}</b> on <b>${esc(coin(x[1]))}</b> · ${x[4]}/9 checks${x[3] ? " · <b>reversed</b>" : ""}` });
+    } else if ((x = s.match(/^(\S+): (LONG|SHORT) CLOSED by (TP|SL|manual).*net ([+-]?[\d.]+)/))) {
+      const pnl = parseFloat(x[4]), win = pnl > 0;
+      const how = x[3] === "TP" ? "hit the target" : x[3] === "SL" ? "hit the stop" : "closed by you ✋";
+      out.push({ time, cls: win ? "win" : "loss", ico: x[3] === "manual" ? "✋" : win ? "💰" : "🌧️",
+                 text: `<b>${esc(coin(x[1]))}</b> ${how} · <b class="${win ? "up" : "down"}">${money(pnl)}</b>` });
+    } else if ((x = s.match(/^Scan done: (\d+) signals, (\d+) trades opened/))) {
+      out.push({ time, cls: "", ico: "🔭", text: `Checked the market: ${x[1]} signals, opened ${x[2]}` });
+    } else if (/STARTED/.test(s)) {
+      out.push({ time, cls: "", ico: "☀️", text: "Woke up and started trading" });
+    } else if (/^Stopped/.test(s)) {
+      out.push({ time, cls: "", ico: "😴", text: "Went to sleep (trades keep their TP/SL)" });
+    }
+  }
+  return out;
+}
+
+function renderControls() {
+  if (!data) return;
+  const running = data.heartbeat && Date.now() / 1000 - data.heartbeat < 180;
+  document.querySelectorAll("#modeSeg button").forEach((b) => b.classList.toggle("on", (b.dataset.auto === "1") === data.auto));
+  document.querySelectorAll("#sideSeg button").forEach((b) => b.classList.toggle("on", (b.dataset.reverse === "1") === !!data.reverse));
+  const btn = $("scanBtn");
+  btn.disabled = !running || data.scanning || data.scan_requested;
+  btn.textContent = data.scanning ? "🔭 Scanning…" : data.scan_requested ? "🔭 Starting…" : "🔭 Scan now";
+  btn.title = running ? "Scan every coin now and open every signal" : "Start crazy.cmd first";
+}
+async function post(path, body) {
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", "X-Dashboard": "1" }, body: JSON.stringify(body || {}) });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+$("modeSeg").addEventListener("click", async (e) => {
+  const b = e.target.closest("button[data-auto]");
+  if (!b || !data) return;
+  const auto = b.dataset.auto === "1";
+  if (auto === data.auto) return;
+  try {
+    await post("/api/crazy/control", { auto });
+    data.auto = auto;
+    say(auto ? "Auto mode! I'll scan every hour by myself ⏰" : "Manual mode. I'll wait for your Scan now 🫡", 3);
+    renderControls(); renderCountdown();
+  } catch (err) { say(`Couldn't switch: ${err.message} 😵`, 3); }
+});
+$("sideSeg").addEventListener("click", async (e) => {
+  const b = e.target.closest("button[data-reverse]");
+  if (!b || !data) return;
+  const reverse = b.dataset.reverse === "1";
+  if (reverse === !!data.reverse) return;
+  try {
+    await post("/api/crazy/control", { reverse });
+    data.reverse = reverse;
+    setMood(reverse ? "love" : "idle", 2);
+    say(reverse ? "Reverse mode! I'll do the OPPOSITE of every signal 🔄" : "Back to normal: I trade what the signals say ✅", 3.5);
+    renderControls();
+  } catch (err) { say(`Couldn't switch: ${err.message} 😵`, 3); }
+});
+$("scanBtn").addEventListener("click", async () => {
+  try {
+    await post("/api/crazy/scan");
+    data.scan_requested = true;
+    setMood("focus", 2);
+    arms[1].kick = performance.now() / 1000;
+    say("On it! Checking every coin 🔭", 3);
+    renderControls(); renderCountdown();
+  } catch (err) { say(`Couldn't start a scan: ${err.message} 😵`, 3); }
+});
+
+function renderCountdown() {
+  const sub = $("substatus");
+  if (!data) return;
+  renderControls();
+  const age = data.heartbeat ? Date.now() / 1000 - data.heartbeat : null;
+  if (age == null || age >= 180) { sub.textContent = data.heartbeat ? "Double-click crazy.cmd to wake me up" : "Not started yet · run crazy.cmd"; return; }
+  if (data.scanning) { sub.textContent = "Looking at every coin right now…"; return; }
+  if (data.scan_requested) { sub.textContent = "Scan requested, starting in a few seconds…"; return; }
+  if (!data.auto) { sub.textContent = "Manual mode · press Scan now to trade"; return; }
+  if (data.next_scan) {
+    const s = Math.max(0, Math.round(data.next_scan - Date.now() / 1000));
+    sub.textContent = `Next scan in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  } else sub.textContent = "Watching my trades";
+}
+setInterval(renderCountdown, 1000);
+
+// mobile sheet tabs
+document.querySelectorAll("[data-sheet]").forEach((b) => b.onclick = () => document.body.classList.toggle("show-diary", b.dataset.sheet === "diary"));
+
+// ================================================================ clicking: bubbles, list rows, the bot
+const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
+let downAt = null;
+renderer.domElement.addEventListener("pointerdown", (e) => { downAt = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener("pointermove", (e) => {
+  look.tx = (e.clientX / innerWidth) * 2 - 1; look.ty = (e.clientY / innerHeight) * 2 - 1;
+});
+renderer.domElement.addEventListener("pointerup", (e) => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
+  pointer.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects([...[...orbs.values()].map((o) => o.ball), skull, body, screen], false);
+  if (!hits.length) { $("detail").classList.remove("show"); return; }
+  const sym = hits[0].object.userData.symbol;
+  if (sym) showDetail(sym, e.clientX, e.clientY);
+  else poke();
+});
+$("tradeList").addEventListener("click", (e) => {
+  const row = e.target.closest(".row"); if (!row) return;
+  const r = row.getBoundingClientRect();
+  showDetail(row.dataset.symbol, r.left - 270, r.top);
+});
+// ---- closing trades by hand
+const closing = new Set();
+const botRunning = () => !!data && !!data.heartbeat && Date.now() / 1000 - data.heartbeat < 180;
+async function closeTrades(symbols) {
+  try {
+    if (symbols === "all") await post("/api/crazy/close", { all: true });
+    else for (const s of symbols) await post("/api/crazy/close", { symbol: s });
+    const list = symbols === "all" ? data.positions.map((p) => p.symbol) : symbols;
+    list.forEach((s) => closing.add(s));
+    setMood("focus", 2); arms[0].kick = performance.now() / 1000;
+    say(symbols === "all" ? `Closing all ${list.length} trades now ✋` : `Closing ${coin(symbols[0])} now ✋`, 3);
+    renderPanels(data);
+    $("detail").classList.remove("show");
+  } catch (err) { say(`Couldn't close: ${err.message} 😵`, 3); }
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-close]");
+  if (!b || b.disabled) return;
+  e.stopPropagation();
+  closeTrades([b.dataset.close]);
+}, true);
+let armTimer = 0;
+$("closeAll").addEventListener("click", () => {
+  const btn = $("closeAll");
+  if (!data || !data.positions.length || !botRunning()) return;
+  if (!btn.classList.contains("armed")) {  // first tap arms it, second tap within 3 s closes everything
+    btn.classList.add("armed"); btn.textContent = `Tap again: close ${data.positions.length}`;
+    clearTimeout(armTimer);
+    armTimer = setTimeout(() => { btn.classList.remove("armed"); btn.textContent = "✋ Close all"; }, 3000);
+    return;
+  }
+  clearTimeout(armTimer); btn.classList.remove("armed"); btn.textContent = "✋ Close all";
+  closeTrades("all");
+});
+
+function showDetail(sym, x, y) {
+  const p = data?.positions.find((q) => q.symbol === sym); if (!p) return;
+  const el = $("detail");
+  const prog = progressOf(p);
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <b style="font-size:18px">${esc(coin(p.symbol))}</b><span class="side-chip ${p.side}">${p.side}</span></div>
+    <div class="kv"><span>Open PnL</span><b class="${p.upnl >= 0 ? "up" : "down"}">${money(p.upnl)} USDT</b></div>
+    <div class="kv"><span>Entry</span><span class="num">${p.entry}</span></div>
+    <div class="kv"><span>Now</span><span class="num">${p.mark ?? "—"}</span></div>
+    <div class="kv"><span>Target 🎯</span><span class="num up">${p.tp}</span></div>
+    <div class="kv"><span>Stop 🛑</span><span class="num down">${p.sl}</span></div>
+    <div class="bar" style="margin:10px 0 4px"><i style="left:${(50 + prog * 50).toFixed(1)}%"></i></div>
+    <div class="why">Opened ${ago(p.opened_at)}${p.mode === "reverse" ? " in 🔄 reverse mode (opposite of the signal)" : ""} because: ${p.reasons.map(esc).join(" · ")}</div>
+    <button class="close-one" data-close="${esc(p.symbol)}" ${closing.has(p.symbol) || !botRunning() ? "disabled" : ""}>
+      ${closing.has(p.symbol) ? "Closing…" : botRunning() ? `✋ Close ${esc(coin(p.symbol))} now` : "Start crazy.cmd to close by hand"}</button>`;
+  el.classList.add("show");
+  el.style.left = `${clamp(x + 14, 12, innerWidth - 262)}px`;
+  el.style.top = `${clamp(y - 20, 12, innerHeight - el.offsetHeight - 12)}px`;
+}
+const POKES = ["Hehe, that tickles! 🤭", "I'm working, I promise! 🫡", "Boop! 🤖", "Want a win? Me too ✨", "Beep boop, trades go brrr 📈"];
+function poke() {
+  setMood("love", 1.6);
+  hover.userData.jump = performance.now() / 1000;
+  arms[0].wave = performance.now() / 1000;
+  say(POKES[Math.floor(Math.random() * POKES.length)], 2.5);
+  tone([880, 1175], "sine", 0.07);
+}
+
+// idle chatter
+setInterval(() => {
+  if (!data || queue.length || bubbleEl.classList.contains("hide") === false) return;
+  if (baseMood === "sleep") return say("Zzz… wake me with crazy.cmd 😴", 3);
+  const n = data.positions.length, best = [...data.positions].sort((a, b) => b.upnl - a.upnl)[0];
+  const lines = [
+    n ? `Riding ${n} trades 🫧` : "No trades right now, watching the charts 👀",
+    best && best.upnl > 0 ? `${coin(best.symbol)} is looking good: ${money(best.upnl)} ✨` : "Come on, market… 🙏",
+    `${data.wins} wins so far! 💰`,
+  ];
+  say(lines[Math.floor(Math.random() * lines.length)], 3.5);
+}, 22000);
+
+// ================================================================ animation loop
+const v = new THREE.Vector3(), camPos = new THREE.Vector3();
+let lastFace = 0;
+function animate() {
+  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime, now = performance.now() / 1000;
+
+  if (now > moodUntil) mood = baseMood;
+  if (queue.length && now > busyUntil) {
+    const dur = runEvent(queue.shift());
+    busyUntil = now + Math.max(0.35, dur - queue.length * 0.12);
+  }
+
+  // robot: hover, jump, look at the pointer
+  const jumpT = now - (hover.userData.jump || -9);
+  const jump = jumpT < 0.7 ? Math.sin((jumpT / 0.7) * Math.PI) * 0.6 : 0;
+  hover.position.y = 0.4 + Math.sin(t * 1.7) * 0.09 + jump;
+  blob.scale.setScalar(1 - (hover.position.y - 0.4) * 0.6);
+  look.x += ((look.tx || 0) - look.x) * 0.08; look.y += ((look.ty || 0) - look.y) * 0.08;
+  head.rotation.y = look.x * 0.35 + (mood === "scan" ? Math.sin(t * 3.2) * 0.25 : 0);
+  head.rotation.x = look.y * 0.12;
+  head.rotation.z = mood === "sad" ? -0.12 : mood === "love" ? Math.sin(t * 8) * 0.08 : Math.sin(t * 0.9) * 0.03;
+  robot.rotation.y = Math.sin(t * 0.4) * 0.12;
+  jet.scale.set(1, 0.8 + Math.sin(t * 30) * 0.15 + (jump ? 0.5 : 0), 1);
+  jetLight.intensity = 5 + Math.sin(t * 25) * 1.5;
+
+  for (const a of arms) {
+    let z = a.side * (0.28 + Math.sin(t * 1.7 + a.side) * 0.05), x = 0;
+    const waveT = now - (a.wave || -9), kickT = now - (a.kick || -9);
+    if (waveT < 1.8) z = a.side * (2.5 + Math.sin(waveT * 14) * 0.35);
+    else if (kickT < 0.8) { x = -Math.sin((kickT / 0.8) * Math.PI) * 1.4; z = a.side * 0.5; }
+    else if (mood === "sad") z = a.side * 0.1;
+    a.pivot.rotation.z += (z - a.pivot.rotation.z) * 0.18;
+    a.pivot.rotation.x += (x - a.pivot.rotation.x) * 0.18;
+  }
+
+  // antenna + belly colour follow the mood
+  const mc = new THREE.Color(MOODS[mood] || MOODS.idle);
+  bulbMat.color.lerp(mc, 0.1); belly.material.color.lerp(mc, 0.1); bulbLight.color.copy(bulbMat.color);
+  bulbLight.intensity = 3 + Math.sin(t * 4) * 1.5;
+  belly.scale.setScalar(1 + Math.sin(t * 3) * 0.06);
+
+  if (t - lastFace > 1 / 30) { drawFace(t); lastFace = t; }
+
+  // rain cloud after a loss
+  const rainT = now - (hover.userData.rain || -9);
+  const raining = rainT < 3.2;
+  const cs = cloud.scale.x + ((raining ? 1 : 0.001) - cloud.scale.x) * 0.12;
+  cloud.scale.setScalar(cs);
+  drops.visible = cs > 0.3;
+  if (drops.visible) {
+    dropSeeds.forEach((d, i) => {
+      const f = (t * 1.6 + d.o) % 1;
+      tmp.position.set(d.x, 1.75 - f * 0.9, d.z); tmp.rotation.set(0, 0, 0); tmp.scale.setScalar(cs);
+      tmp.updateMatrix(); drops.setMatrixAt(i, tmp.matrix);
+    });
+    drops.instanceMatrix.needsUpdate = true;
+  }
+
+  // scan radar ring
+  scanRing.visible = mood === "scan" || baseMood === "scan";
+  if (scanRing.visible) {
+    const f = (t * 0.6) % 1;
+    scanRing.scale.setScalar(0.4 + f * 3.3);
+    scanRing.material.opacity = 0.8 * (1 - f);
+  }
+
+  // orbs
+  camera.getWorldPosition(camPos);
+  const robotDist = camPos.distanceTo(new THREE.Vector3(0, 1.5, 0));
+  for (const [sym, orb] of orbs) {
+    slotPosition(slots.get(sym) ?? 0, t, v);
+    v.y += progressOf(orb.data) * 0.3;
+    orb.group.position.lerp(v, 1 - Math.exp(-dt * 2.6));
+    const s = orb.group.scale.x + (1 - orb.group.scale.x) * 0.08;
+    orb.group.scale.setScalar(s);
+    orb.halo.rotation.z += dt * (orb.data.side === "LONG" ? 1.2 : -1.2);
+    orb.el.style.opacity = camPos.distanceTo(orb.group.position) > robotDist + 1.2 ? "0.18" : "1";
+  }
+  for (const orb of [...ghosts]) {
+    orb.t += dt;
+    if (orb.state === "ghost") {
+      if (orb.t > 12) removeOrb(orb);  // no result arrived: just fade away
+    } else if (orb.state === "win") {
+      const k = Math.min(1, orb.t / 1.0), to = winJar.group.position.clone().add(new THREE.Vector3(0, 1.6, 0));
+      const mid = orb.start.clone().lerp(to, 0.5).add(new THREE.Vector3(0, 2.2, 0));
+      orb.group.position.copy(orb.start).multiplyScalar((1 - k) ** 2).addScaledVector(mid, 2 * (1 - k) * k).addScaledVector(to, k * k);
+      orb.group.scale.setScalar(1 - k * 0.5);
+      orb.mat.color.lerp(new THREE.Color(0xffd166), 0.1); orb.mat.emissive.copy(orb.mat.color);
+      if (k >= 1) { burst(orb.group.position, 40); dropCoin(winJar, orb.group.getWorldPosition(new THREE.Vector3())); removeOrb(orb); }
+    } else if (orb.state === "loss") {
+      orb.vel.y -= 9 * dt;
+      orb.group.position.addScaledVector(orb.vel, dt);
+      if (orb.group.position.y < 0.25) { orb.group.position.y = 0.25; orb.vel.y *= -0.35; orb.vel.x *= 0.7; orb.vel.z *= 0.7; }
+      if (orb.t > 1.1) { orb.mat.opacity = Math.max(0, 1 - (orb.t - 1.1) / 0.7); orb.el.style.opacity = orb.mat.opacity; }
+      if (orb.t > 1.8) { dropCoin(lossJar); removeOrb(orb); }
+    }
+  }
+
+  // coins falling into the jars
+  for (const jar of [winJar, lossJar]) {
+    for (const f of [...jar.falling]) {
+      f.t += dt * 1.6;
+      const k = Math.min(1, f.t), e = k * k;
+      f.m.position.lerpVectors(f.start, f.target, e);
+      f.m.rotation.x = (1 - k) * f.spin; f.m.rotation.z = (1 - k) * f.spin * 0.5;
+      if (k >= 1) { jar.group.remove(f.m); jar.falling.splice(jar.falling.indexOf(f), 1); setJarCount(jar, jar.shown + 1); }
+    }
+  }
+  // keep the jars honest with the real counts once the animations are done
+  if (data && !queue.length && !ghosts.some((o) => o.state !== "ghost")) {
+    if (!winJar.falling.length && winJar.shown !== data.wins) setJarCount(winJar, data.wins);
+    if (!lossJar.falling.length && lossJar.shown !== data.losses) setJarCount(lossJar, data.losses);
+  }
+
+  // confetti
+  let anyConf = false;
+  confParts.forEach((c, i) => {
+    if (c.life > 0) {
+      anyConf = true;
+      c.life -= dt; c.v.y -= 7 * dt; c.v.multiplyScalar(0.985);
+      c.p.addScaledVector(c.v, dt);
+      tmp.position.copy(c.p); tmp.rotation.set(c.r.x * t, c.r.y * t, c.r.z * t);
+      tmp.scale.setScalar(c.life > 0 && c.p.y > 0 ? 1 : 0);
+    } else tmp.scale.setScalar(0);
+    tmp.updateMatrix(); confetti.setMatrixAt(i, tmp.matrix);
+  });
+  confetti.instanceMatrix.needsUpdate = true;
+  confetti.visible = anyConf;
+
+  sparkles.rotation.y += dt * 0.05;
+  const sp = sparkles.geometry.attributes.position;
+  for (let i = 0; i < sp.count; i++) { let y = sp.getY(i) + dt * 0.25; if (y > 5) y = 0; sp.setY(i, y); }
+  sp.needsUpdate = true;
+  stars.rotation.y += dt * 0.004;
+
+  controls.update();
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+
+poll();
+setInterval(poll, 4000);
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

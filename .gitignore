@@ -1,0 +1,15 @@
+# secrets: API keys live in .env (copy .env.example to .env)
+.env
+
+# Python
+.venv/
+__pycache__/
+
+# runtime data: candle history (re-download with data.py), bot state, logs, trade journals, archives
+data/**
+# ...but keep the research reports
+!data/**/
+!data/**/report.md
+trades.csv
+crazy_trades.csv
+*.log
