@@ -4,8 +4,8 @@
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 ![Demo account by default](https://img.shields.io/badge/runs%20on-demo%20account-ffb454)
 
-Four trading bots for **Binance USDⓈ-M futures**, each with its own strategy and its own cute 3D page, plus the
-backtests and research notes behind them. Everything runs on Binance's **demo account (fake money)** by default.
+Four trading bots and one paper-only copy-trading bot for **Binance USDⓈ-M futures**, each with its own strategy and
+its own page, plus the backtests and research notes behind them. Everything runs on Binance's **demo account (fake money)** by default.
 
 ![The Crazy, Scoop and Sniper bots](docs/social-preview.png)
 
@@ -21,7 +21,8 @@ backtests and research notes behind them. Everything runs on Binance's **demo ac
 | 📈 **Trend bot** | Daily breakouts: buys when a daily candle closes above its 55-day high and the 100 EMA, then trails the stop under the 20-day low. The one strategy that passed the long-term backtests. | `start.cmd` | the main dashboard |
 | 🤖 **Crazy** | Scans every liquid coin, long and short, scoring 9 classic YouTube confirmations. Every trade risks $2 to make $2. Manual or hourly scans, a Reverse mode, close trades by hand. | `crazy.cmd` | `/bot` |
 | 📰 **Scoop** | News trading: watches Binance's delisting announcements every 2 seconds and shorts the coin right after the news. | `news.cmd` | `/news` |
-| 🎯 **Sniper** | Trades like a discretionary trader: 4h trend + key support/resistance level + a *closed* trigger candle at that level. Targets at least 2× the risk, takes half off at +1R. | `sniper.cmd` | `/sniper` |
+| 🎯 **Sniper** | Trades like a discretionary trader: 4h trend + key support/resistance level + a *closed* trigger candle at that level. Targets at least 2× the risk, takes half off at +1R. Its backtest lost money (see `data/sniper_backtest/report.md`). | `sniper.cmd` | `/sniper` |
+| 🪞 **Copy** | Ranks Binance's copy-trading lead traders by their *real* closed trades (not the board's ROI), filters out new accounts, hidden positions, "too perfect" win rates and big open losses, then copies the best ones **on paper only**. No orders. | `copy.cmd` | `/copy` |
 
 <table>
 <tr>
@@ -79,6 +80,7 @@ Double-click one of the launchers. Each starts the bot, starts the local dashboa
 - `sniper.cmd` → http://127.0.0.1:8000/sniper
 - `crazy.cmd` → http://127.0.0.1:8000/bot
 - `news.cmd` → http://127.0.0.1:8000/news
+- `copy.cmd` → http://127.0.0.1:8000/copy
 - `start.cmd` → the trend bot and the main dashboard at http://127.0.0.1:8000
 
 The main dashboard's top bar links to every bot page. Each bot's settings (risk per trade, leverage, targets) are in `.env`, with comments.
@@ -103,6 +105,7 @@ The trend bot has its own complete guide: [BOT_GUIDE.md](BOT_GUIDE.md).
 | `python news_bot.py check` | Recent delisting notices and what Scoop would do, without trading |
 | `python trend_bot.py run` / `scan` | Trend bot: trade / show signals and positions without trading |
 | `python dashboard.py` | Local dashboard and bot pages at http://127.0.0.1:8000 |
+| `python copy_bot.py scout` | Rank Binance's lead traders now (no orders) |
 | `python bot.py plan BTCUSDT --stop 59400 --balance 1000` | Position-size calculator: size, margin, max loss, liquidation price. No keys needed. |
 | `python bot.py status` | Balance, open positions, stop-loss/take-profit orders |
 | `python bot.py trade BTCUSDT --stop 59400` | A manual sized trade after you confirm. A stop **below** price opens a long, **above** a short. Options: `--risk 1`, `--rr 2`, `--leverage 3` |
@@ -116,10 +119,11 @@ The trend bot has its own complete guide: [BOT_GUIDE.md](BOT_GUIDE.md).
 | Path | What's in it |
 |---|---|
 | `sniper_bot.py`, `crazy_bot.py`, `news_bot.py`, `trend_bot.py` | The four bots |
-| `dashboard.py`, `static/` | The local web server, the main dashboard and the Three.js bot pages |
+| `dashboard.py`, `static/` | The local web server, the main dashboard and the bot pages |
 | `client.py`, `bot.py`, `risk.py`, `config.py` | Binance API client, order helpers, position sizing, settings |
 | `analysis.py`, `structure.py`, `levels.py`, `patterns.py`, `indicators.py` | Chart reading: market structure, support/resistance zones, candle patterns, indicators |
 | `lab.py`, `backtest.py`, `intraday_lab.py`, `validate_trend.py`, `train_trend.py` | Backtests and strategy labs |
+| `sniper_backtest.py` | Replays the sniper bot's real rules over the past months, compared with the trend bot (report in `data/sniper_backtest/report.md`) |
 | `LEARNING.md`, `data/*/report.md`, `PLAN.md` | Research notes, backtest reports, the original plan |
 
 ## Notes

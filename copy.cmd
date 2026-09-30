@@ -1,5 +1,5 @@
 @echo off
-title Trend Bot
+title Copy Bot (shadow)
 cd /d "%~dp0"
 netstat -ano | findstr /r /c:"127.0.0.1:8000 .*LISTENING" >nul
 if errorlevel 1 (
@@ -7,16 +7,15 @@ if errorlevel 1 (
   start "Bot dashboard" /min ".venv\Scripts\python.exe" dashboard.py
   timeout /t 4 /nobreak >nul
 )
-start "" "http://127.0.0.1:8000"
-echo.
+start "" "http://127.0.0.1:8000/copy"
 echo ================================================================
-echo  Trend bot is RUNNING on the account in .env (demo by default).
-echo  To stop: close this window or press Ctrl+C.
-echo  Open positions keep their stop orders on Binance when stopped.
-echo  Also close the minimized "Bot dashboard" window when done.
+echo  Copy bot: ranks Binance lead traders by their real history and
+echo  copies the best ones ON PAPER. It places no orders at all.
+echo  First scout takes a few minutes. To stop: close this window or Ctrl+C.
+echo  Copy bot's page: http://127.0.0.1:8000/copy   All bots: http://127.0.0.1:8000
 echo ================================================================
 echo.
-".venv\Scripts\python.exe" trend_bot.py run
+".venv\Scripts\python.exe" copy_bot.py run
 echo.
-echo Bot stopped.
+echo Copy bot stopped.
 pause

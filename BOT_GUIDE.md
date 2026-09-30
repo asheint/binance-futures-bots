@@ -26,7 +26,7 @@ It only trades **while you run it**, it's set to your **demo (fake money) accoun
 
 This opens:
 - the **"Trend Bot"** window (the bot itself: leave it open while you want it trading)
-- a minimized **"Trend Bot dashboard"** window
+- a minimized **"Bot dashboard"** window
 - your browser at **http://127.0.0.1:8000**
 
 If Windows says *"Windows protected your PC"*, click **More info → Run anyway**.

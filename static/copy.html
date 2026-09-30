@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Copy Bot</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23102232'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle'%3E%F0%9F%AA%9E%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #081420;
+    --card: rgba(16, 36, 52, 0.72);
+    --card-line: rgba(126, 249, 255, 0.12);
+    --text: #eaf7fb;
+    --muted: #9fb8c4;
+    --faint: #62808e;
+    --accent: #7ef9ff;
+    --win: #4ef0a0;
+    --loss: #ff6b7d;
+    --warn: #ffc857;
+    --radius: 20px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { min-height: 100vh; background: radial-gradient(110% 70% at 50% 0%, #133449 0%, var(--bg) 60%); color: var(--text);
+         font: 15px/1.45 "Fredoka", ui-rounded, "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+  .num { font-variant-numeric: tabular-nums; }
+  .up { color: var(--win); } .down { color: var(--loss); } .dim { color: var(--muted); } .faint { color: var(--faint); }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 24px 24px 48px; }
+  .card { background: var(--card); border: 1px solid var(--card-line); border-radius: var(--radius); box-shadow: 0 10px 34px rgba(0, 6, 12, .45); }
+
+  header { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; margin-bottom: 18px; }
+  .brand { display: flex; gap: 14px; align-items: flex-start; padding: 14px 18px; flex: 1 1 420px; }
+  .brand .logo { font-size: 34px; line-height: 1; filter: drop-shadow(0 0 12px rgba(126, 249, 255, .5)); }
+  .brand h1 { margin: 0; font-size: 24px; font-weight: 700; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .brand .sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .brand .rules { font-size: 12.5px; color: var(--faint); margin-top: 8px; line-height: 1.45; }
+  .shadow-tag { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 2px 8px; border-radius: 6px;
+                background: rgba(126, 249, 255, .14); color: var(--accent); }
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 99px;
+          background: rgba(255,255,255,.08); }
+  .pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+  .pill.run i { background: var(--win); box-shadow: 0 0 10px var(--win); animation: pulse 1.6s infinite; }
+  .pill.busy i { background: var(--accent); box-shadow: 0 0 10px var(--accent); animation: pulse .6s infinite; }
+  .pill.stop i { background: var(--loss); }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .tools { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+  .btn { font: inherit; font-size: 13px; font-weight: 600; color: var(--text); background: rgba(255,255,255,.07); border: 1px solid var(--card-line);
+         border-radius: 99px; padding: 6px 14px; cursor: pointer; text-decoration: none; white-space: nowrap; }
+  .btn:hover { background: rgba(126, 249, 255, .12); }
+  .btn.primary { background: var(--accent); color: #062029; border-color: transparent; box-shadow: 0 0 16px rgba(126, 249, 255, .35); }
+  .btn:disabled { opacity: .45; cursor: default; }
+
+  .stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; padding: 14px; flex: 1 1 520px; }
+  .tile { background: rgba(255,255,255,.04); border-radius: 14px; padding: 8px 12px; }
+  .tile .k { font-size: 12px; color: var(--muted); }
+  .tile .v { font-size: 22px; font-weight: 600; }
+
+  .section { margin-top: 18px; }
+  .section-title { display: flex; align-items: baseline; gap: 12px; margin: 0 0 10px; }
+  .section-title h2 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .section-title small { color: var(--faint); font-size: 13px; }
+  .traders { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 12px; }
+  .trader { padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .trader .top { display: flex; align-items: center; gap: 8px; }
+  .trader .nick { font-size: 17px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .trader .score { margin-left: auto; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 8px; background: rgba(126,249,255,.14); color: var(--accent); }
+  .trader .dropped { font-size: 11px; color: var(--warn); }
+  .facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .fact { background: rgba(255,255,255,.04); border-radius: 10px; padding: 4px 8px; }
+  .fact .k { font-size: 10.5px; color: var(--muted); }
+  .fact .v { font-size: 14px; font-weight: 600; }
+  .mine { display: flex; justify-content: space-between; font-size: 13px; padding: 6px 8px; border-radius: 10px; background: rgba(126,249,255,.06); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,.08); white-space: nowrap; }
+  td { padding: 7px 8px; border-bottom: 1px solid rgba(255,255,255,.04); vertical-align: top; }
+  tr.fail td { color: var(--faint); }
+  .table-card { padding: 8px 10px; overflow-x: auto; }
+  .side { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 6px; }
+  .side.LONG { background: rgba(78,240,160,.16); color: var(--win); } .side.SHORT { background: rgba(255,107,125,.16); color: var(--loss); }
+  .ok { color: var(--win); font-weight: 600; }
+  .reasons { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .reason { font-size: 12px; padding: 3px 9px; border-radius: 99px; background: rgba(255,255,255,.06); color: var(--muted); }
+  .reason b { color: var(--text); font-weight: 600; }
+  .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+  .log { padding: 10px 14px; max-height: 360px; overflow-y: auto; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+  .log div { padding: 3px 0; border-top: 1px solid rgba(255,255,255,.04); } .log div:first-child { border-top: 0; }
+  .empty { color: var(--faint); font-size: 14px; padding: 14px 6px; }
+  .note { font-size: 12.5px; color: var(--faint); margin-top: 8px; line-height: 1.5; }
+
+  @media (max-width: 900px) {
+    .wrap { padding: 16px 16px 40px; }
+    .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .two { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="card brand">
+      <div class="logo">🪞</div>
+      <div>
+        <h1>Copy bot <span class="shadow-tag">shadow · no orders</span> <span id="status" class="pill"><i></i><span>connecting…</span></span></h1>
+        <div class="sub" id="substatus">Loading…</div>
+        <div class="tools">
+          <button class="btn primary" id="scoutBtn" title="Re-rank the lead traders now (takes a few minutes)">🔎 Scout now</button>
+          <a class="btn" href="/">← Dashboard</a>
+        </div>
+        <div class="rules" id="rules"></div>
+      </div>
+    </div>
+    <div class="card stats">
+      <div class="tile"><div class="k">Paper net</div><div class="v num" id="net">—</div></div>
+      <div class="tile"><div class="k">Win rate</div><div class="v num" id="rate">—</div></div>
+      <div class="tile"><div class="k">Closed copies</div><div class="v num" id="closedCount">—</div></div>
+      <div class="tile"><div class="k">Open copies</div><div class="v num" id="openCount">—</div></div>
+      <div class="tile"><div class="k">Open P&amp;L</div><div class="v num" id="unrealized">—</div></div>
+    </div>
+  </header>
+
+  <div class="section">
+    <div class="section-title"><h2>Following</h2><small>the traders that passed every filter, best score first</small></div>
+    <div class="traders" id="traders"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><h2>Open paper copies</h2><small>entered at the price when we saw their new position</small></div>
+    <div class="card table-card" id="open"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><h2>Closed paper copies</h2><small>after fees</small></div>
+    <div class="card table-card" id="closed"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><h2>Scout ranking</h2><small id="scoutInfo"></small></div>
+    <div class="reasons" id="reasons"></div>
+    <div class="card table-card" id="ranking"></div>
+    <div class="note">The board's ROI is shown but not used: it is the easiest number to game (new accounts, tiny deposits,
+      losers kept open). The score uses the trader's own closed trades: profit factor (max 5) × (0.5 + share of winning weeks)
+      × (1 − drawdown) × a trade-count factor.</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><h2>Activity</h2><small>newest first</small></div>
+    <div class="card log" id="log"></div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const money = (v) => (v == null ? "—" : `${v > 0 ? "+" : ""}${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+const cls = (v) => (v > 0 ? "up" : v < 0 ? "down" : "");
+const coin = (s) => String(s).replace(/USDT$/, "");
+const px = (v) => (v == null ? "—" : v >= 1 ? v.toLocaleString(undefined, { maximumFractionDigits: 4 }) : Number(v).toPrecision(5));
+const pct = (v, d = 0) => (v == null ? "—" : `${Number(v).toFixed(d)}%`);
+let data = null;
+
+function ago(t) {
+  if (!t) return "never";
+  const s = Math.max(0, Date.now() / 1000 - t);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+  return `${Math.floor(s / 86400)} d ago`;
+}
+function until(t) {
+  const s = Math.max(0, t - Date.now() / 1000);
+  return s < 3600 ? `${Math.ceil(s / 60)} min` : `${(s / 3600).toFixed(1)} h`;
+}
+
+function traderCard(t) {
+  const weeks = t.weeks_up == null ? "—" : pct(t.weeks_up * 100);
+  return `<div class="card trader">
+    <div class="top"><div class="nick" title="${esc(t.id)}">${esc(t.nickname || t.id)}</div>
+      ${t.picked ? `<span class="score" title="our score">★ ${t.score == null ? "—" : Number(t.score).toFixed(2)}</span>` : `<span class="dropped">dropped · closing copies</span>`}</div>
+    <div class="facts">
+      <div class="fact"><div class="k">Profit factor</div><div class="v num">${t.pf == null ? "—" : Number(t.pf).toFixed(2)}</div></div>
+      <div class="fact"><div class="k">Trades · win</div><div class="v num">${t.trades ?? "—"} · ${pct(t.win_rate)}</div></div>
+      <div class="fact"><div class="k">Winning weeks</div><div class="v num">${weeks}</div></div>
+      <div class="fact"><div class="k">Drawdown</div><div class="v num">${pct(t.mdd)}</div></div>
+      <div class="fact"><div class="k">Leverage</div><div class="v num">${t.leverage == null ? "—" : Number(t.leverage).toFixed(0) + "x"}</div></div>
+      <div class="fact"><div class="k">Age</div><div class="v num">${t.days == null ? "—" : Math.round(t.days) + " d"}</div></div>
+    </div>
+    <div class="mine"><span>Our copies: <b>${t.closed}</b> closed${t.open ? `, <b>${t.open}</b> open` : ""}</span>
+      <b class="num ${cls(t.net + t.unrealized)}">${t.closed || t.open ? money(t.net + t.unrealized) : "—"}</b></div>
+  </div>`;
+}
+
+function openTable(rows) {
+  if (!rows.length) return `<div class="empty">No open copies. A copy opens when a followed trader opens a NEW position.</div>`;
+  return `<table><tr><th>Trader</th><th>Coin</th><th>Our entry</th><th>Their entry</th><th>Mark</th><th>Size left</th><th>P&amp;L</th><th>Opened</th></tr>
+    ${rows.map((p) => {
+      const slip = ((p.entry - p.leader_entry) / p.leader_entry) * 100 * (p.side === "LONG" ? 1 : -1);
+      return `<tr><td>${esc(p.nickname)}</td><td><span class="side ${p.side}">${p.side}</span> <b>${esc(coin(p.symbol))}</b></td>
+        <td class="num">${px(p.entry)}</td><td class="num">${px(p.leader_entry)} <span class="faint" title="how much worse our entry is">(${slip >= 0 ? "+" : ""}${slip.toFixed(2)}%)</span></td>
+        <td class="num">${px(p.mark)}</td><td class="num">${Math.round(p.share * 100)}%</td>
+        <td class="num ${cls(p.upnl + p.realized)}">${money(p.upnl + p.realized)}</td><td>${ago(p.opened_at)}</td></tr>`;
+    }).join("")}</table>`;
+}
+
+function closedTable(rows) {
+  if (!rows.length) return `<div class="empty">No closed copies yet.</div>`;
+  return `<table><tr><th>Trader</th><th>Coin</th><th>Entry → exit</th><th>Why</th><th>Held</th><th>Net</th></tr>
+    ${rows.map((c) => `<tr><td>${esc(c.nickname)}</td><td><span class="side ${c.side}">${c.side}</span> <b>${esc(coin(c.symbol))}</b></td>
+      <td class="num">${px(c.entry)} → ${px(c.exit)}</td><td>${esc(c.reason)}</td>
+      <td>${((c.closed_at - c.opened_at) / 3600).toFixed(1)} h</td><td class="num ${cls(c.pnl)}">${money(c.pnl)}</td></tr>`).join("")}</table>`;
+}
+
+function rankingTable(rows) {
+  if (!rows.length) return `<div class="empty">No scout yet. Start the bot (copy.cmd) or press Scout now.</div>`;
+  return `<table><tr><th>#</th><th>Trader</th><th>Board ROI</th><th>Drawdown</th><th>Age</th><th>Verdict</th></tr>
+    ${rows.map((r, i) => `<tr class="${r.reason ? "fail" : ""}"><td>${i + 1}</td><td>${esc(r.nickname)}</td>
+      <td class="num">${pct(r.roi)}</td><td class="num">${pct(r.mdd)}</td><td class="num">${Math.round(r.days)} d</td>
+      <td>${r.reason ? esc(r.reason) : `<span class="ok">✓ passed</span> · score ${Number(r.score).toFixed(2)} · PF ${Number(r.pf).toFixed(2)} · ${r.trades} trades · ${pct(r.win_rate)} win`}</td></tr>`).join("")}</table>`;
+}
+
+function render() {
+  const d = data;
+  const alive = d.heartbeat && Date.now() / 1000 - d.heartbeat < 180;
+  const st = $("status");
+  st.className = `pill ${!alive ? "stop" : d.scouting ? "busy" : "run"}`;
+  st.lastElementChild.textContent = !alive ? (d.heartbeat ? "stopped" : "not started") : d.scouting ? "scouting" : "shadowing";
+  $("substatus").textContent = !alive
+    ? (d.heartbeat ? "Stopped · double-click copy.cmd" : "Not started yet · double-click copy.cmd")
+    : `Last scout ${ago(d.last_scout)}${d.next_scout ? ` · next in ${until(d.next_scout)}` : ""} · positions checked ${ago(d.last_poll)}`;
+  const r = d.rules;
+  $("rules").textContent = `Follows the best ${r.follow} traders · ${r.notional} USDT per paper copy · our stop ${r.stop_pct}% · `
+    + `filters: ≥ ${r.min_days} days, ≥ ${r.min_trades} trades, drawdown ≤ ${r.max_mdd}%, leverage ≤ ${r.max_leverage}x, account ≥ ${r.min_balance} USDT`;
+  $("scoutBtn").disabled = !alive || d.scouting || d.scout_requested;
+  $("scoutBtn").textContent = d.scouting || d.scout_requested ? "🔎 Scouting…" : "🔎 Scout now";
+
+  $("net").innerHTML = `<span class="${cls(d.net)}">${d.closed_count ? money(d.net) : "—"}</span>`;
+  $("rate").textContent = d.closed_count ? pct((d.wins / d.closed_count) * 100) : "—";
+  $("closedCount").textContent = d.closed_count;
+  $("openCount").textContent = d.positions.length;
+  $("unrealized").innerHTML = `<span class="${cls(d.unrealized)}">${d.positions.length ? money(d.unrealized) : "—"}</span>`;
+
+  $("traders").innerHTML = d.traders.length ? d.traders.map(traderCard).join("")
+    : `<div class="card empty" style="padding:16px">Nobody followed yet. The first scout picks them (a few minutes after the bot starts).</div>`;
+  $("open").innerHTML = openTable(d.positions);
+  $("closed").innerHTML = closedTable(d.closed);
+  const sc = d.scout;
+  $("scoutInfo").textContent = sc.time ? `${sc.candidates} lead traders read ${ago(sc.time)}, ${sc.passed} passed` : "";
+  $("reasons").innerHTML = sc.reasons.map(([k, n]) => `<span class="reason">${esc(k)} <b>${n}</b></span>`).join("");
+  $("ranking").innerHTML = rankingTable(sc.rows);
+  $("log").innerHTML = d.log.length ? d.log.map((l) => `<div>${esc(l)}</div>`).join("") : `<div class="empty">Nothing yet</div>`;
+}
+
+async function refresh() {
+  try {
+    const res = await fetch("/api/copy");
+    const d = await res.json();
+    if (!res.ok || d.error) throw new Error(d.error || res.statusText);
+    data = d;
+    render();
+  } catch (err) {
+    $("substatus").textContent = `Can't reach the dashboard (${err.message})`;
+  }
+}
+
+$("scoutBtn").addEventListener("click", async () => {
+  $("scoutBtn").disabled = true;
+  await fetch("/api/copy/scout", { method: "POST", headers: { "X-Dashboard": "1", "Content-Type": "application/json" }, body: "{}" });
+  refresh();
+});
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

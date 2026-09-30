@@ -116,6 +116,12 @@ Backtest 2020–2026 with those caps: ~+23%/year, worst drop ~15%. Expect losing
   - Possible next step: 15m "shadow mode" (log signals, no orders) for 1–2 months before deciding
 - **"Check now" button** added: dashboard asks the running bot to run a full cycle within 30 seconds
 
+### Sniper backtest (2026-09-30): `python sniper_backtest.py`, report in `data/sniper_backtest/report.md`
+- Real `plan_coin()` replayed on every 15m candle, 24 coins, Sep 2025 → Sep 2026, managed like live (half at +1R, break-even, 48 h exit, altcoin cap 2)
+- ❌ 2165 trades, 50% win, **−0.14R per trade, PF 0.74**, account −95% at 1% risk; lost in 12 of 13 months, longs and shorts, bounces and breakouts
+- Half the trades hit the full stop: price does not respect these levels more than chance
+- Same window, trend bot: 28 trades, −0.42R, −11% at 1% risk (a quiet year for trends, damage contained)
+
 - [ ] Compare live results with the backtest monthly
 - [ ] Known weaknesses to verify: candle patterns away from levels, divergence in strong trends, RSI filter in trends, overlapping trend checks
 - [ ] Tune weights on **2023–2024**, verify once on **2025–2026** (never seen during tuning)

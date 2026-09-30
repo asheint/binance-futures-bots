@@ -33,6 +33,7 @@ from train_trend import trades_for
 from trend_bot import (CHECK_FLAG, DAY, EXIT_LOW_DAYS, INITIAL_STOP_ATR, LOOKBACK, MAX_OPEN, MIN_STOP_PCT, RISK_PCT,
                        LAST_SCAN, SETTINGS_PATH, TRADE_REQUEST, TRADE_RESULT, TREND_EMA, TrendBot, load_settings)
 from trend_bot import SYMBOLS as TREND_SYMBOLS
+import copy_bot
 import crazy_bot
 import news_bot
 import sniper_bot
@@ -42,6 +43,7 @@ PAGE = ROOT / "static" / "dashboard.html"
 BOT_PAGE = ROOT / "static" / "bot.html"  # the crazy bot's robot page
 NEWS_PAGE = ROOT / "static" / "news.html"  # the news bot's page
 SNIPER_PAGE = ROOT / "static" / "sniper.html"  # the sniper bot's page
+COPY_PAGE = ROOT / "static" / "copy.html"  # the copy bot's page
 HOST, PORT = "127.0.0.1", 8000
 SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,20}$")
 
@@ -341,6 +343,53 @@ def sniper_status() -> dict:
             "log": lines[::-1]}
 
 
+def copy_status() -> dict:
+    """The copy bot's followed traders, paper copies, per-trader results, the last scout's ranking and its log."""
+    def read(path: Path, default: dict) -> dict:
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return default
+    state = read(copy_bot.STATE_PATH, {})
+    scout = read(copy_bot.SCOUT_PATH, {"rows": []})
+    lines: list[str] = []
+    if copy_bot.LOG_PATH.exists():
+        lines = copy_bot.LOG_PATH.read_text(encoding="utf-8", errors="replace").strip().splitlines()[-60:]
+    closed = state.get("closed", [])
+    opened = list(state.get("open", {}).values())
+    traders = []
+    for trader in state.get("following", []):
+        info = state.get("traders", {}).get(trader, {})
+        mine = [c["pnl"] for c in closed if c["trader"] == trader]
+        traders.append({"id": trader, **info, "picked": trader in state.get("picked", []),
+                        "open": sum(p["trader"] == trader for p in opened), "closed": len(mine),
+                        "wins": sum(p > 0 for p in mine), "net": sum(mine),
+                        "unrealized": sum(p.get("upnl", 0.0) for p in opened if p["trader"] == trader)})
+    groups = (("too new", "too new"), ("deep drawdown", "deep drawdown"), ("hides", "hides positions"),
+              ("not active", "not active"), ("idle", "idle"), ("small account", "small account"), ("only", "few trades"),
+              ("profit factor", "low profit factor"), ("too perfect", "too perfect (losers held open)"),
+              ("no-stop", "no-stop pattern"), ("one lucky", "one lucky trade"), ("high leverage", "high leverage"),
+              ("holding big losers", "holding big losers"), ("data error", "data error"))
+    reasons: dict[str, int] = defaultdict(int)
+    for r in scout.get("rows", []):
+        if r.get("reason"):
+            reasons[next((label for prefix, label in groups if r["reason"].startswith(prefix)), r["reason"])] += 1
+    pnls = [c["pnl"] for c in closed]
+    s = copy_bot.Settings()
+    return {"heartbeat": state.get("heartbeat"), "scouting": state.get("scouting", False),
+            "scout_requested": copy_bot.SCOUT_FLAG.exists(), "last_scout": state.get("last_scout"),
+            "next_scout": state.get("next_scout"), "last_poll": state.get("last_poll"), "traders": traders,
+            "positions": sorted(opened, key=lambda p: -p["opened_at"]), "closed": closed[-40:][::-1],
+            "closed_count": len(pnls), "wins": sum(p > 0 for p in pnls), "losses": sum(p <= 0 for p in pnls),
+            "net": sum(pnls), "unrealized": sum(p.get("upnl", 0.0) for p in opened),
+            "scout": {"time": scout.get("time"), "candidates": scout.get("candidates", 0), "passed": scout.get("passed", 0),
+                      "rows": scout.get("rows", [])[:80], "reasons": sorted(reasons.items(), key=lambda kv: -kv[1])},
+            "rules": {"follow": s.follow, "notional": s.notional, "stop_pct": s.stop_pct, "poll": s.poll,
+                      "min_days": s.min_days, "min_trades": s.min_trades, "max_mdd": s.max_mdd,
+                      "max_leverage": s.max_leverage, "min_balance": s.min_balance},
+            "log": lines[::-1]}
+
+
 def symbol_ticker(symbol: str, source: str) -> dict:
     """Header stats for one symbol, like the bar above Binance's chart."""
     feed = market if source == "real" else client
@@ -494,6 +543,10 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if url.path == "/":
                 self.send(PAGE.read_bytes(), "text/html; charset=utf-8")
+            elif url.path == "/copy":
+                self.send(COPY_PAGE.read_bytes(), "text/html; charset=utf-8")
+            elif url.path == "/api/copy":
+                self.send_json(copy_status())
             elif url.path == "/bot":
                 self.send(BOT_PAGE.read_bytes(), "text/html; charset=utf-8")
             elif url.path == "/news":
@@ -640,6 +693,12 @@ class Handler(BaseHTTPRequestHandler):
                 sniper_bot.CLOSE_REQUEST.parent.mkdir(parents=True, exist_ok=True)
                 sniper_bot.CLOSE_REQUEST.write_text(json.dumps({"symbols": symbols, "time": time.time()}), encoding="utf-8")
                 self.send_json({"ok": True, "symbols": symbols})
+                return
+            if path == "/api/copy/scout":
+                # "Scout now": the running copy bot re-ranks the lead traders within a few seconds
+                copy_bot.SCOUT_FLAG.parent.mkdir(parents=True, exist_ok=True)
+                copy_bot.SCOUT_FLAG.write_text(str(time.time()), encoding="utf-8")
+                self.send_json({"ok": True})
                 return
             if path == "/api/crazy/scan":
                 # "Scan now": the running crazy bot picks this up within a few seconds, scans and trades.

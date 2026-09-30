@@ -261,7 +261,7 @@ class TrendBot:
             return False
 
         when = "yesterday's close" if s.get("days_ago", 0) == 0 else f"close {s['days_ago'] + 1} days ago (catch-up)"
-        log(f"{symbol}: ENTRY {when} {price_text(s.get('signal_close', s['close']))} > 20-day high "
+        log(f"{symbol}: ENTRY {when} {price_text(s.get('signal_close', s['close']))} > {LOOKBACK}-day high "
             f"{price_text(s.get('signal_level', s['level']))} and EMA100 | buy {fmt(plan.qty)} @ ~{price_text(mark)}, "
             f"stop {price_text(stop)}, risk {plan.risk_usdt:.2f} USDT")
         bot.prepare_account(self.client, symbol, self.cfg.leverage)
