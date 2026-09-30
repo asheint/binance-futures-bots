@@ -12,8 +12,10 @@ Every 15 minutes (right after a 15m candle closes), for each liquid coin:
 4. Trigger: only a CLOSED candle counts, never a touch.
 5. Risk plan: stop just beyond the level/wick, target = the next level (or 3R in open air).
    Skipped unless the target is at least MIN_RR times the risk. Sized so the stop loses RISK_USDT.
-   At +1R half is taken off and the stop moves to break-even. Closed after MAX_HOLD_H hours.
-6. "Not now" filters: choppy market (1h ADX < ADX_MIN), crowded funding, BTC against the trade.
+   At +1R half is taken off (a resting limit order on Binance, so it fills even while this bot is down) and
+   the stop moves to break-even. Closed after MAX_HOLD_H hours.
+6. "Not now" filters: choppy market (1h ADX < ADX_MIN), crowded funding, BTC against the trade, and already
+   MAX_ALT_SAME_SIDE altcoin trades open in that direction (altcoins move together: more is one bigger bet).
 Grade shown per trade: A+ with 2+ bonuses (sweep, volume, Fibonacci), A with 1, B with none.
 
   python sniper_bot.py run          # plan every 15 minutes, fire on triggers, manage trades
@@ -71,6 +73,7 @@ class Settings:
         self.max_coins = int(setting("SNIPER_MAX_COINS", "40"))
         self.max_hold = float(setting("SNIPER_MAX_HOLD_H", "48"))
         self.adx_min = float(setting("SNIPER_ADX_MIN", "20"))
+        self.max_alt_side = int(setting("SNIPER_MAX_ALT_SAME_SIDE", "2"))  # open altcoin longs (or shorts) at once
 
 
 def load_control() -> dict:
@@ -351,6 +354,11 @@ class SniperBot:
             if symbol in open_now:
                 log(f"{symbol}: TRIGGER {fire['side']} {fire['kind']}, but a position is already open on this coin")
                 continue
+            same_side = sum(1 for sym, pos in self.state["positions"].items() if sym != "BTCUSDT" and pos["side"] == fire["side"])
+            if symbol != "BTCUSDT" and same_side >= self.s.max_alt_side:
+                log(f"{symbol}: TRIGGER {fire['side']} {fire['kind']}, but {same_side} altcoin {fire['side'].lower()}s "
+                    f"are already open (max {self.s.max_alt_side}): skipped")
+                continue
             try:
                 if self.fire(symbol, fire):
                     fired += 1
@@ -443,6 +451,10 @@ class SniperBot:
             "why": f["why"], "bonuses": f["bonuses"], "target_label": target_label,
             "opened_at": int(time.time() * 1000), "sl_id": sl_id, "tp_id": tp_id, "partial": False,
         }
+        try:
+            self.place_half(symbol, self.state["positions"][symbol])
+        except BinanceAPIError as err:
+            log(f"{symbol}: could not place the +1R half order ({err.msg}); will retry")
         self.save_state()
         journal.log(self.cfg.journal_path, "OPEN", env=self.cfg.env, symbol=symbol, side=side, qty=fmt(qty),
                     price=f"{entry:.8g}", stop=fmt(sl), take_profit=fmt(tp), leverage=leverage, risk_usdt=f"{risk:.2f}",
@@ -457,6 +469,21 @@ class SniperBot:
                                            closePosition=True,
                                            workingType="MARK_PRICE" if kind == "STOP_MARKET" else "CONTRACT_PRICE")
         return order.get("algoId")
+
+    def place_half(self, symbol: str, pos: dict) -> None:
+        """Resting reduce-only LIMIT for half the position at +1R: Binance banks it even while this bot is down or
+        between two checks. The stop moves to break-even once the bot sees the position shrink."""
+        rules = self.rules(symbol)
+        long = pos["side"] == "LONG"
+        half = rules.round_qty(dec(pos["qty"]) / 2)
+        if half < rules.min_qty or half * dec(pos["entry"]) < rules.min_notional:
+            pos["half_id"] = None  # too small to split: at +1R only the stop moves
+            return
+        one_r = abs(pos["entry"] - pos["initial_sl"])
+        price = rules.round_price(pos["entry"] + one_r if long else pos["entry"] - one_r)
+        order = self.client.new_order(symbol=symbol, side="SELL" if long else "BUY", type="LIMIT", timeInForce="GTC",
+                                      quantity=fmt(half), price=fmt(price), reduceOnly=True)
+        pos["half_id"] = order.get("orderId")
 
     def market_close(self, symbol: str, qty: Decimal | None = None) -> None:
         live = bot.open_position(self.client, symbol)
@@ -503,10 +530,17 @@ class SniperBot:
                     continue
                 mark = float(live["markPrice"])
                 one_r = abs(pos["entry"] - pos["initial_sl"])
-                # +1R: take half off and move the stop to break-even
-                if not pos["partial"] and ((mark - pos["entry"]) if long else (pos["entry"] - mark)) >= one_r:
-                    self.take_half(symbol, pos, live)
+                # +1R: the half order filled (position shrank), or the mark is there and it hasn't yet
+                shrank = abs(dec(live["positionAmt"])) < dec(pos["qty"])
+                if not pos["partial"] and (shrank or ((mark - pos["entry"]) if long else (pos["entry"] - mark)) >= one_r):
+                    self.take_half(symbol, pos)
                     continue
+                if not pos["partial"] and "half_id" not in pos:  # opened before the half order existed, or it failed
+                    try:
+                        self.place_half(symbol, pos)
+                        log(f"{symbol}: +1R half order placed")
+                    except BinanceAPIError as err:
+                        log(f"{symbol}: could not place the +1R half order ({err.msg}); will retry")
                 if time.time() * 1000 - pos["opened_at"] > self.s.max_hold * 3600_000 and not pos.get("closing"):
                     log(f"{symbol}: held {self.s.max_hold:g} h without reaching stop or target, closing")
                     pos["closing"] = "time exit"
@@ -527,24 +561,41 @@ class SniperBot:
                             break
         self.save_state()
 
-    def take_half(self, symbol: str, pos: dict, live: dict) -> None:
+    def take_half(self, symbol: str, pos: dict) -> None:
         rules = self.rules(symbol)
         long = pos["side"] == "LONG"
-        half = rules.round_qty(abs(dec(live["positionAmt"])) / 2)
         entry = pos["entry"]
         be = rules.round_price(entry * (1 + 0.0012) if long else entry * (1 - 0.0012))  # covers the fees
         try:
-            if half >= rules.min_qty and half * dec(entry) >= rules.min_notional:
-                self.market_close(symbol, half)
-                pos["qty"] = fmt(abs(dec(live["positionAmt"])) - half)
+            if pos.get("half_id"):
+                try:
+                    self.client.cancel_order(symbol, pos["half_id"])
+                except BinanceAPIError:
+                    pass  # already filled
+            live = bot.open_position(self.client, symbol)
+            if live is None:
+                return  # closed in the meantime; housekeeping books it
+            size = abs(dec(live["positionAmt"]))
+            half = rules.round_qty(dec(pos["qty"]) / 2)
+            if size >= dec(pos["qty"]) and half >= rules.min_qty and half * dec(entry) >= rules.min_notional:
+                self.market_close(symbol, half)  # the mark reached +1R but the half order hasn't filled
+                size -= half
             if pos.get("sl_id"):
                 try:
                     self.client.cancel_algo_order(pos["sl_id"])
                 except BinanceAPIError:
                     pass
-            pos["sl_id"] = self.place(symbol, "STOP_MARKET", be, long)
-            pos["sl"], pos["partial"] = float(be), True
-            log(f"{symbol}: +1R reached: took half off, stop moved to break-even {fmt(be)}")
+            try:
+                pos["sl_id"] = self.place(symbol, "STOP_MARKET", be, long)
+            except BinanceAPIError as err:
+                if err.code != -2021:  # -2021 = would trigger immediately: price is already back under break-even
+                    raise
+                log(f"{symbol}: price is already back past break-even, closing the rest")
+                pos["closing"] = "break-even"
+                self.market_close(symbol)
+            pos["qty"], pos["sl"], pos["partial"] = fmt(size), float(be), True  # only now: a failure above retries
+            log(f"{symbol}: +1R reached: took half off, "
+                + ("rest closed at break-even" if pos.get("closing") else f"stop moved to break-even {fmt(be)}"))
         except BinanceAPIError as err:
             log(f"{symbol}: +1R management failed ({err.msg}); will retry")
         self.save_state()

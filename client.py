@@ -36,7 +36,8 @@ class FuturesClient:
 
     # ---- plumbing -------------------------------------------------------
 
-    def _request(self, method: str, path: str, params: dict[str, Any] | None = None, signed: bool = False) -> Any:
+    def _request(self, method: str, path: str, params: dict[str, Any] | None = None, signed: bool = False,
+                 resync: bool = True) -> Any:
         clean: dict[str, Any] = {}
         for key, value in (params or {}).items():
             if value is None:
@@ -64,6 +65,10 @@ class FuturesClient:
         if resp.status_code >= 400 or (isinstance(data, dict) and isinstance(data.get("code"), int) and data["code"] < 0):
             code = data.get("code") if isinstance(data, dict) else None
             msg = data.get("msg", resp.text) if isinstance(data, dict) else resp.text
+            if signed and code == -1021 and resync:
+                # the PC clock drifted since the last sync; Binance rejected the request unprocessed, so retrying is safe
+                self.sync_time()
+                return self._request(method, path, params, signed, resync=False)
             raise BinanceAPIError(resp.status_code, code, msg)
         return data
 
@@ -145,6 +150,9 @@ class FuturesClient:
 
     def get_order(self, symbol: str, order_id: int) -> dict:
         return self._request("GET", "/fapi/v1/order", {"symbol": symbol, "orderId": order_id}, signed=True)
+
+    def cancel_order(self, symbol: str, order_id: int) -> None:
+        self._request("DELETE", "/fapi/v1/order", {"symbol": symbol, "orderId": order_id}, signed=True)
 
     def filled_avg_price(self, order: dict, retries: int = 5) -> float:
         """Market order responses can arrive before the fill; poll until avgPrice is known (0 if never)."""
